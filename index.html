@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TokoKilat - Instant Store</title>
+<title>Toko AQSHA - Instant Store</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -205,7 +205,7 @@ async function viewDash(){
 
   app.innerHTML=`
   <aside class="hidden md:flex fixed inset-y-0 left-0 w-60 flex-col p-4 text-white" style="background:linear-gradient(180deg,#4338ca,#6d28d9)">
-    <div class="flex items-center gap-3 px-2 py-3"><div class="w-10 h-10 rounded-xl bg-white/20 grid place-items-center font-extrabold">T</div><p class="font-extrabold text-lg">TokoKilat</p></div>
+    <div class="flex items-center gap-3 px-2 py-3"><div class="w-10 h-10 rounded-xl bg-white/20 grid place-items-center font-extrabold">T</div><p class="font-extrabold text-lg">Toko AQSHA</p></div>
     <nav class="nav mt-4 space-y-1">${NAV.map(([k,i,l])=>`<a data-tab="${k}" class="${dashTab===k?'on':''}"><span>${i}</span>${l}</a>`).join('')}</nav>
     <a href="#/store/${esc(P.username)}" class="mt-auto btn !bg-white !text-indigo-700">Lihat toko publik</a>
   </aside>
@@ -491,7 +491,7 @@ async function viewStore(username,ref,pid){
   const {data:p,error}=await sb.from('profiles').select('*').eq('username',username.toLowerCase()).maybeSingle();
   if(error||!p){app.innerHTML=`<div class="min-h-screen grid place-items-center p-6 text-center"><div><p class="text-5xl">🔍</p><p class="font-extrabold text-lg mt-3">Toko tidak ditemukan</p><p class="text-sm text-slate-500 mt-1">Periksa kembali link yang Anda buka.</p><a href="#/" class="btn mt-4">Ke beranda</a></div></div>`;return}
   const {data:prods=[]}=await sb.from('products').select('*').eq('user_id',p.id).order('created_at',{ascending:false});
-  document.title=p.store_name+' - TokoKilat';
+  document.title=p.store_name+' - Toko AQSHA';
   const cats=['Semua',...new Set(prods.map(x=>x.category))];
   const ban=safeUrl(p.banner_url)?`url('${esc(p.banner_url)}') center/cover`:'linear-gradient(135deg,#4f46e5,#8b5cf6 60%,#c084fc)';
   const render=cat=>{$('#grid').innerHTML=prods.filter(x=>cat==='Semua'||x.category===cat).map(x=>`
@@ -511,7 +511,7 @@ async function viewStore(username,ref,pid){
     </div>
     ${cats.length>2?`<div id="cats" class="px-4 mt-6 flex gap-2 overflow-x-auto">${cats.map((c,i)=>`<button data-c="${esc(c)}" class="shrink-0 px-4 py-2 rounded-full text-sm font-semibold ${i?'bg-white text-slate-600':'bg-indigo-600 text-white'}">${esc(c)}</button>`).join('')}</div>`:''}
     <div id="grid" class="px-4 mt-4 grid gap-4 sm:grid-cols-2"></div>
-    <p class="text-center text-xs text-slate-400 mt-10">Dibuat dengan TokoKilat</p></div>`;
+    <p class="text-center text-xs text-slate-400 mt-10">Dibuat dengan Toko AQSHA</p></div>`;
   render('Semua');track(p.id,'view');if(pid){const tp=prods.find(x=>x.id===pid);if(tp)checkout(tp,p,ref)}
   $$('#cats [data-c]').forEach(b=>b.onclick=()=>{$$('#cats [data-c]').forEach(x=>x.className='shrink-0 px-4 py-2 rounded-full text-sm font-semibold bg-white text-slate-600');b.className='shrink-0 px-4 py-2 rounded-full text-sm font-semibold bg-indigo-600 text-white';render(b.dataset.c)});
 }
