@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TokoKilat - Instant Store</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+tailwind.config = { theme: { extend: { fontFamily: { sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'] } } } };
+</script>
+<style>
+  body { background:#f5f5fb; }
+  .card { background:#fff; border-radius:1.25rem; box-shadow:0 1px 2px rgba(79,70,229,.06), 0 8px 24px rgba(79,70,229,.06); }
+  .inp { width:100%; border:1px solid #e5e7eb; border-radius:.75rem; padding:.7rem .9rem; font-size:.9rem; background:#fff; outline:none; }
+  .inp:focus { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,.18); }
+  .btn { background:#4f46e5; color:#fff; font-weight:600; border-radius:.75rem; padding:.7rem 1.1rem; font-size:.9rem; transition:.15s; display:inline-flex; align-items:center; justify-content:center; gap:.5rem; }
+  .btn:hover { background:#4338ca; } .btn:disabled { opacity:.6; cursor:not-allowed; }
+  .btn-ghost { background:#eef2ff; color:#4f46e5; } .btn-ghost:hover { background:#e0e7ff; }
+  .btn-danger { background:#fef2f2; color:#dc2626; } .btn-danger:hover { background:#fee2e2; }
+  .spin { width:1rem; height:1rem; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:sp .7s linear infinite; }
+  .spin.dark { border-color:#c7d2fe; border-top-color:#4f46e5; }
+  @keyframes sp { to { transform:rotate(360deg); } }
+  .tabbar a.on { color:#4f46e5; } .tabbar a.on .dot { background:#4f46e5; }
+  :focus-visible { outline:2px solid #6366f1; outline-offset:2px; }
+</style>
+</head>
+<body class="font-sans text-slate-800 antialiased">
+<div id="app"></div>
+<div id="modal" class="fixed inset-0 z-50 hidden items-end sm:items-center justify-center bg-slate-900/50 p-0 sm:p-4"></div>
+<div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] hidden px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg"></div>
+
+<script>
+/* ============ KONFIGURASI ============ */
+const SUPABASE_URL = 'ISI_SUPABASE_URL_ANDA';          // https://xxxx.supabase.co
+const SUPABASE_ANON_KEY = 'ISI_SUPABASE_ANON_KEY_ANDA'; // Project Settings > API > anon public
+/* ====================================== */
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const $ = (s, r = document) => r.querySelector(s);
+const app = $('#app'), modal = $('#modal');
+const rp = n => 'Rp' + Number(n || 0).toLocaleString('id-ID');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const waNum = n => { let d = String(n || '').replace(/\D/g, ''); return d.startsWith('0') ? '62' + d.slice(1) : d; };
+const safeUrl = u => /^https?:\/\//i.test(u || '') ? u : '';
+let session = null, dashTab = 'home';
+
+function toast(msg, ok = true) {
+  const t = $('#toast'); t.textContent = msg;
+  t.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg ' + (ok ? 'bg-emerald-600' : 'bg-red-600');
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.add('hidden'), 3500);
+}
+// Jalankan aksi async pada tombol dengan loading state + error handling
+async function withLoading(btn, fn) {
+  const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Memproses...';
+  try { await fn(); } catch (e) { console.error(e); toast(e.message || 'Terjadi kesalahan. Coba lagi.', false); }
+  finally { btn.disabled = false; btn.innerHTML = old; }
+}
+const loadingView = () => app.innerHTML = '<div class="min-h-screen grid place-items-center"><span class="spin dark" style="width:2rem;height:2rem"></span></div>';
+const openModal = html => { modal.innerHTML = `<div class="card w-full sm:max-w-md max-h-[92vh] overflow-y-auto p-5 rounded-b-none sm:rounded-b-[1.25rem]">${html}</div>`; modal.classList.remove('hidden'); modal.classList.add('flex'); };
+const closeModal = () => { modal.classList.add('hidden'); modal.classList.remove('flex'); modal.innerHTML = ''; };
+modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+/* ============ ROUTER ============ */
+async function route() {
+  const h = location.hash.replace(/^#\/?/, '');
+  if (h.startsWith('store/')) return viewStore(decodeURIComponent(h.split('/')[1] || ''));
+  const { data } = await sb.auth.getSession(); session = data.session;
+  if (!session) return viewAuth();
+  return viewDash();
+}
+window.addEventListener('hashchange', route);
+sb.auth.onAuthStateChange((_e, s) => { session = s; });
+route();
+
+/* ============ AUTH ============ */
+function viewAuth(mode = 'login') {
+  const reg = mode === 'register';
+  app.innerHTML = `
+  <div class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-sm">
+      <div class="text-center mb-6">
+        <div class="mx-auto w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 grid place-items-center text-white text-xl font-extrabold">T</div>
+        <h1 class="mt-4 text-2xl font-extrabold">${reg ? 'Buka toko Anda' : 'Masuk ke dashboard'}</h1>
+        <p class="text-sm text-slate-500 mt-1">${reg ? 'Satu link untuk semua produk Anda.' : 'Kelola produk dan pesanan Anda.'}</p>
+      </div>
+      <form id="af" class="card p-5 space-y-3">
+        ${reg ? `<input class="inp" name="store_name" placeholder="Nama toko" required>
+        <input class="inp" name="username" placeholder="Username (huruf kecil, tanpa spasi)" pattern="[a-z0-9_]{3,20}" title="3-20 karakter: huruf kecil, angka, underscore" required>
+        <input class="inp" name="wa" placeholder="Nomor WhatsApp, mis. 0812xxxx" inputmode="tel" required>` : ''}
+        <input class="inp" type="email" name="email" placeholder="Email" required>
+        <input class="inp" type="password" name="password" placeholder="Password (min. 6 karakter)" minlength="6" required>
+        <button class="btn w-full" type="submit">${reg ? 'Daftar' : 'Masuk'}</button>
+      </form>
+      <p class="text-center text-sm text-slate-500 mt-4">${reg ? 'Sudah punya akun?' : 'Belum punya akun?'}
+        <button id="sw" class="text-indigo-600 font-semibold">${reg ? 'Masuk' : 'Daftar'}</button></p>
+    </div>
+  </div>`;
+  $('#sw').onclick = () => viewAuth(reg ? 'login' : 'register');
+  $('#af').onsubmit = e => {
+    e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+    withLoading($('#af button[type=submit]'), async () => {
+      if (reg) {
+        const { data, error } = await sb.auth.signUp({ email: f.email, password: f.password,
+          options: { data: { username: f.username.toLowerCase(), store_name: f.store_name, whatsapp_number: waNum(f.wa) } } });
+        if (error) throw new Error(error.message.includes('duplicate') ? 'Username sudah dipakai.' : error.message);
+        if (!data.session) { toast('Pendaftaran berhasil. Cek email Anda untuk konfirmasi, lalu masuk.'); return viewAuth('login'); }
+      } else {
+        const { error } = await sb.auth.signInWithPassword({ email: f.email, password: f.password });
+        if (error) throw new Error('Email atau password salah.');
+      }
+      route();
+    });
+  };
+}
+
+/* ============ DASHBOARD ============ */
+async function viewDash() {
+  loadingView();
+  const uid = session.user.id;
+  const [p, pr, o] = await Promise.all([
+    sb.from('profiles').select('*').eq('id', uid).single(),
+    sb.from('products').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
+    sb.from('orders').select('*, products(title, price)').order('created_at', { ascending: false })
+  ]);
+  if (p.error || pr.error || o.error) {
+    app.innerHTML = `<div class="min-h-screen grid place-items-center p-6 text-center"><div><p class="font-bold">Gagal memuat data</p><p class="text-sm text-slate-500 mt-1">${esc((p.error || pr.error || o.error).message)}</p>
+    <p class="text-xs text-slate-400 mt-2">Pastikan schema.sql sudah dijalankan dan URL/Key Supabase benar.</p>
+    <button class="btn mt-4" onclick="viewDash()">Coba lagi</button></div></div>`; return;
+  }
+  const profile = p.data, products = pr.data, orders = o.data;
+  const revenue = orders.filter(x => x.status === 'Lunas').reduce((s, x) => s + Number(x.products?.price || 0), 0);
+  const link = `${location.origin}${location.pathname}#/store/${profile.username}`;
+  const nav = [['home', 'Ringkasan'], ['products', 'Produk'], ['orders', 'Pesanan'], ['profile', 'Profil']];
+
+  let body = '';
+  if (dashTab === 'home') body = `
+    <div class="card p-5 bg-gradient-to-br from-indigo-600 to-violet-600 text-white" style="background:linear-gradient(135deg,#4f46e5,#7c3aed)">
+      <p class="text-sm text-indigo-100">Total pendapatan (pesanan lunas)</p>
+      <p class="text-3xl font-extrabold mt-1">${rp(revenue)}</p>
+      <div class="mt-4 flex items-center gap-2 bg-white/15 rounded-xl p-2 text-xs"><span class="truncate flex-1">${esc(link)}</span>
+        <button id="cp" class="bg-white text-indigo-700 font-semibold rounded-lg px-3 py-1.5">Salin</button></div>
+    </div>
+    <div class="grid grid-cols-2 gap-3 mt-3">
+      <div class="card p-4"><p class="text-xs text-slate-500">Total produk</p><p class="text-2xl font-extrabold mt-1">${products.length}</p></div>
+      <div class="card p-4"><p class="text-xs text-slate-500">Pesanan masuk</p><p class="text-2xl font-extrabold mt-1">${orders.length}</p></div>
+    </div>
+    <a href="#/store/${esc(profile.username)}" class="btn btn-ghost w-full mt-3">Lihat toko publik</a>`;
+  if (dashTab === 'products') body = `
+    <div class="flex items-center justify-between mb-3"><h2 class="font-bold text-lg">Produk</h2><button id="addp" class="btn">+ Tambah</button></div>
+    ${products.length ? products.map(x => `
+      <div class="card p-3 mb-3 flex gap-3">
+        <img src="${esc(safeUrl(x.image_url)) || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E'}" onerror="this.style.visibility='hidden'" class="w-16 h-16 rounded-xl object-cover bg-indigo-50 shrink-0" alt="">
+        <div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(x.title)}</p><p class="text-xs text-slate-500">${esc(x.category)}</p><p class="text-indigo-600 font-bold text-sm mt-0.5">${rp(x.price)}</p></div>
+        <div class="flex flex-col gap-1.5"><button class="btn btn-ghost !py-1 !px-3 text-xs" data-edit="${x.id}">Ubah</button><button class="btn btn-danger !py-1 !px-3 text-xs" data-del="${x.id}">Hapus</button></div>
+      </div>`).join('') : `<div class="card p-8 text-center text-slate-500 text-sm">Belum ada produk. Tambahkan produk pertama Anda agar toko bisa mulai menjual.</div>`}`;
+  if (dashTab === 'orders') body = `
+    <h2 class="font-bold text-lg mb-3">Pesanan</h2>
+    ${orders.length ? orders.map(x => `
+      <div class="card p-4 mb-3">
+        <div class="flex justify-between gap-2"><p class="font-semibold">${esc(x.products?.title || '-')}</p><span class="text-xs font-semibold px-2 py-1 rounded-full h-fit ${x.status === 'Lunas' ? 'bg-emerald-50 text-emerald-700' : x.status === 'Dibatalkan' ? 'bg-slate-100 text-slate-500' : 'bg-amber-50 text-amber-700'}">${esc(x.status)}</span></div>
+        <p class="text-sm text-slate-600 mt-1">${esc(x.buyer_name)} · ${esc(x.buyer_whatsapp)}</p>
+        <p class="text-xs text-slate-400">${esc(x.buyer_email)} · ${new Date(x.created_at).toLocaleString('id-ID')}</p>
+        <div class="flex items-center justify-between mt-3"><p class="font-bold text-indigo-600">${rp(x.products?.price)}</p>
+        <div class="flex gap-2">
+          <a class="btn btn-ghost !py-1 !px-3 text-xs" target="_blank" rel="noopener" href="https://wa.me/${waNum(x.buyer_whatsapp)}">Chat</a>
+          ${x.status !== 'Lunas' ? `<button class="btn !py-1 !px-3 text-xs" data-st="${x.id}|Lunas">Tandai lunas</button>` : ''}
+          ${x.status === 'Menunggu Pembayaran' ? `<button class="btn btn-danger !py-1 !px-3 text-xs" data-st="${x.id}|Dibatalkan">Batalkan</button>` : ''}
+        </div></div>
+      </div>`).join('') : `<div class="card p-8 text-center text-slate-500 text-sm">Belum ada pesanan. Bagikan link toko Anda untuk mulai menerima pesanan.</div>`}`;
+  if (dashTab === 'profile') body = `
+    <h2 class="font-bold text-lg mb-3">Profil toko</h2>
+    <form id="pf" class="card p-5 space-y-3">
+      <input class="inp" name="store_name" value="${esc(profile.store_name)}" placeholder="Nama toko" required>
+      <textarea class="inp" name="bio" rows="3" placeholder="Bio singkat">${esc(profile.bio)}</textarea>
+      <input class="inp" name="avatar_url" value="${esc(profile.avatar_url)}" placeholder="URL foto profil (https://...)">
+      <input class="inp" name="wa" value="${esc(profile.whatsapp_number)}" placeholder="Nomor WhatsApp" inputmode="tel" required>
+      <p class="text-xs text-slate-400">Username: @${esc(profile.username)}</p>
+      <button class="btn w-full" type="submit">Simpan profil</button>
+    </form>
+    <button id="lo" class="btn btn-danger w-full mt-3">Keluar</button>`;
+
+  app.innerHTML = `
+  <div class="max-w-lg mx-auto px-4 pt-5 pb-28">
+    <header class="flex items-center gap-3 mb-5">
+      <div class="w-11 h-11 rounded-full bg-indigo-100 overflow-hidden grid place-items-center font-bold text-indigo-600">${profile.avatar_url ? `<img src="${esc(safeUrl(profile.avatar_url))}" class="w-full h-full object-cover" alt="">` : esc((profile.store_name || 'T')[0])}</div>
+      <div><p class="text-xs text-slate-500">Halo,</p><p class="font-extrabold leading-tight">${esc(profile.store_name)}</p></div>
+    </header>
+    ${body}
+  </div>
+  <nav class="tabbar fixed bottom-0 inset-x-0 bg-white border-t border-slate-100"><div class="max-w-lg mx-auto grid grid-cols-4">
+    ${nav.map(([k, l]) => `<a href="javascript:void 0" data-tab="${k}" class="${dashTab === k ? 'on' : 'text-slate-400'} py-3 text-center text-xs font-semibold"><span class="dot block w-1.5 h-1.5 rounded-full mx-auto mb-1 ${dashTab === k ? '' : 'bg-transparent'}"></span>${l}</a>`).join('')}
+  </div></nav>`;
+
+  document.querySelectorAll('[data-tab]').forEach(a => a.onclick = () => { dashTab = a.dataset.tab; viewDash(); });
+  if ($('#cp')) $('#cp').onclick = () => navigator.clipboard.writeText(link).then(() => toast('Link toko disalin'), () => toast('Gagal menyalin', false));
+  if ($('#addp')) $('#addp').onclick = () => productForm();
+  document.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => productForm(products.find(x => x.id === b.dataset.edit)));
+  document.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    if (!confirm('Hapus produk ini? Pesanan terkait juga ikut terhapus.')) return;
+    withLoading(b, async () => { const { error } = await sb.from('products').delete().eq('id', b.dataset.del); if (error) throw error; toast('Produk dihapus'); viewDash(); });
+  });
+  document.querySelectorAll('[data-st]').forEach(b => b.onclick = () => {
+    const [id, st] = b.dataset.st.split('|');
+    withLoading(b, async () => { const { error } = await sb.from('orders').update({ status: st }).eq('id', id); if (error) throw error; toast('Status diperbarui'); viewDash(); });
+  });
+  if ($('#pf')) $('#pf').onsubmit = e => {
+    e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+    withLoading($('#pf button[type=submit]'), async () => {
+      const { error } = await sb.from('profiles').update({ store_name: f.store_name, bio: f.bio, avatar_url: f.avatar_url, whatsapp_number: waNum(f.wa) }).eq('id', uid);
+      if (error) throw error; toast('Profil disimpan'); viewDash();
+    });
+  };
+  if ($('#lo')) $('#lo').onclick = async () => { await sb.auth.signOut(); session = null; viewAuth(); };
+}
+
+function productForm(x = {}) {
+  const cats = ['Produk Digital', 'Jasa/Layanan', 'Produk Fisik'];
+  openModal(`
+    <div class="flex justify-between items-center mb-4"><h3 class="font-extrabold text-lg">${x.id ? 'Ubah produk' : 'Produk baru'}</h3><button id="cl" class="text-slate-400 text-xl" aria-label="Tutup">&times;</button></div>
+    <form id="prf" class="space-y-3">
+      <input class="inp" name="title" placeholder="Nama produk" value="${esc(x.title)}" required>
+      <select class="inp" name="category">${cats.map(c => `<option ${x.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
+      <input class="inp" type="number" name="price" min="0" step="1" placeholder="Harga (Rupiah)" value="${x.price ?? ''}" required>
+      <textarea class="inp" name="description" rows="3" placeholder="Deskripsi produk">${esc(x.description)}</textarea>
+      <input class="inp" name="image_url" placeholder="URL gambar produk (https://...)" value="${esc(x.image_url)}">
+      <input class="inp" name="digital_file_url" placeholder="Tautan unduhan / catatan akses" value="${esc(x.digital_file_url)}">
+      <button class="btn w-full" type="submit">${x.id ? 'Simpan perubahan' : 'Tambah produk'}</button>
+    </form>`);
+  $('#cl').onclick = closeModal;
+  $('#prf').onsubmit = e => {
+    e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); f.price = Number(f.price);
+    withLoading($('#prf button[type=submit]'), async () => {
+      const q = x.id ? sb.from('products').update(f).eq('id', x.id) : sb.from('products').insert({ ...f, user_id: session.user.id });
+      const { error } = await q; if (error) throw error;
+      closeModal(); toast(x.id ? 'Produk diperbarui' : 'Produk ditambahkan'); viewDash();
+    });
+  };
+}
+
+/* ============ TOKO PUBLIK ============ */
+async function viewStore(username) {
+  loadingView();
+  const { data: p, error } = await sb.from('profiles').select('*').eq('username', username.toLowerCase()).maybeSingle();
+  if (error || !p) {
+    app.innerHTML = `<div class="min-h-screen grid place-items-center p-6 text-center"><div><p class="text-5xl">🔍</p><p class="font-extrabold text-lg mt-3">Toko tidak ditemukan</p><p class="text-sm text-slate-500 mt-1">Periksa kembali link yang Anda buka.</p><a href="#/" class="btn mt-4">Ke beranda</a></div></div>`; return;
+  }
+  const { data: prods = [] } = await sb.from('products').select('*').eq('user_id', p.id).order('created_at', { ascending: false });
+  document.title = p.store_name + ' - TokoKilat';
+  app.innerHTML = `
+  <div class="max-w-lg mx-auto pb-12">
+    <div class="h-32" style="background:linear-gradient(135deg,#4f46e5,#8b5cf6)"></div>
+    <div class="px-4 -mt-12 text-center">
+      <div class="w-24 h-24 mx-auto rounded-full border-4 border-white bg-indigo-100 overflow-hidden grid place-items-center text-3xl font-extrabold text-indigo-600 shadow">${p.avatar_url ? `<img src="${esc(safeUrl(p.avatar_url))}" class="w-full h-full object-cover" alt="">` : esc((p.store_name || 'T')[0])}</div>
+      <h1 class="mt-3 text-xl font-extrabold">${esc(p.store_name)}</h1>
+      <p class="text-xs text-slate-400">@${esc(p.username)}</p>
+      ${p.bio ? `<p class="text-sm text-slate-600 mt-2 max-w-xs mx-auto">${esc(p.bio)}</p>` : ''}
+    </div>
+    <div class="px-4 mt-6 grid gap-3 sm:grid-cols-1">
+      ${prods.length ? prods.map(x => `
+      <div class="card overflow-hidden">
+        ${safeUrl(x.image_url) ? `<img src="${esc(x.image_url)}" class="w-full h-44 object-cover bg-indigo-50" alt="${esc(x.title)}" onerror="this.remove()">` : ''}
+        <div class="p-4">
+          <span class="text-[11px] font-semibold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">${esc(x.category)}</span>
+          <h3 class="font-bold mt-2">${esc(x.title)}</h3>
+          ${x.description ? `<p class="text-sm text-slate-500 mt-1 line-clamp-3">${esc(x.description)}</p>` : ''}
+          <div class="flex items-center justify-between mt-3"><p class="text-lg font-extrabold text-indigo-600">${rp(x.price)}</p>
+          <button class="btn" data-buy="${x.id}">Beli sekarang</button></div>
+        </div>
+      </div>`).join('') : `<div class="card p-8 text-center text-slate-500 text-sm">Toko ini belum memiliki produk.</div>`}
+    </div>
+    <p class="text-center text-xs text-slate-400 mt-8">Dibuat dengan TokoKilat</p>
+  </div>`;
+  document.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => checkout(prods.find(x => x.id === b.dataset.buy), p));
+}
+
+function checkout(prod, seller) {
+  openModal(`
+    <div class="flex justify-between items-center mb-1"><h3 class="font-extrabold text-lg">Checkout</h3><button id="cl" class="text-slate-400 text-xl" aria-label="Tutup">&times;</button></div>
+    <div class="bg-indigo-50 rounded-xl p-3 mb-4 flex justify-between text-sm"><span class="font-semibold">${esc(prod.title)}</span><span class="font-extrabold text-indigo-600">${rp(prod.price)}</span></div>
+    <form id="co" class="space-y-3">
+      <input class="inp" name="name" placeholder="Nama lengkap" required>
+      <input class="inp" name="wa" placeholder="Nomor WhatsApp, mis. 0812xxxx" inputmode="tel" pattern="[0-9+\\s-]{8,16}" required>
+      <input class="inp" type="email" name="email" placeholder="Email" required>
+      <button class="btn w-full" type="submit">Konfirmasi pesanan</button>
+      <p class="text-xs text-slate-400 text-center">Anda akan diarahkan ke WhatsApp penjual untuk menyelesaikan pembayaran.</p>
+    </form>`);
+  $('#cl').onclick = closeModal;
+  $('#co').onsubmit = e => {
+    e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+    withLoading($('#co button[type=submit]'), async () => {
+      const { error } = await sb.from('orders').insert({ id: crypto.randomUUID(), product_id: prod.id, buyer_name: f.name, buyer_email: f.email, buyer_whatsapp: waNum(f.wa), status: 'Menunggu Pembayaran' });
+      if (error) throw new Error('Pesanan gagal disimpan. Coba lagi sebentar lagi.');
+      const msg = `Halo, saya ingin memesan ${prod.title} seharga ${rp(prod.price)}.\n\nData saya:\nNama: ${f.name}\nWhatsApp: ${f.wa}\nEmail: ${f.email}\n\nMohon info cara pembayarannya. Terima kasih!`;
+      const to = waNum(seller.whatsapp_number);
+      if (!to) { closeModal(); return toast('Pesanan tersimpan, tetapi penjual belum mengatur nomor WhatsApp.', false); }
+      toast('Pesanan tersimpan. Mengarahkan ke WhatsApp...');
+      setTimeout(() => { location.href = `https://wa.me/${to}?text=${encodeURIComponent(msg)}`; }, 700);
+    });
+  };
+}
+</script>
+</body>
+</html>
