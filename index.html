@@ -3,10 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TokoAqsha - Instant Store</title>
+<title>TokoKilat - Instant Store</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script>tailwind.config={theme:{extend:{fontFamily:{sans:['"Plus Jakarta Sans"','system-ui','sans-serif']}}}};</script>
 <style>
 body{background:#f4f3fb}
@@ -24,6 +26,8 @@ body{background:#f4f3fb}
 .nav a.on,.nav a:hover{background:rgba(255,255,255,.16);color:#fff}
 .sec{font-size:.7rem;font-weight:700;color:#94a3b8;margin:1rem 0 .4rem}
 :focus-visible{outline:2px solid #6366f1;outline-offset:2px}
+#print-root{display:none}
+@media print{@page{size:A4;margin:0}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{background:#fff}body>*:not(#print-root){display:none!important}#print-root{display:block!important}}
 </style>
 </head>
 <body class="font-sans text-slate-800 antialiased">
@@ -48,7 +52,7 @@ const waNum=n=>{let d=String(n||'').replace(/\D/g,'');return d.startsWith('0')?'
 const safeUrl=u=>/^https?:\/\//i.test(u||'')?u:'';
 const baseUrl=()=>location.origin+location.pathname;
 const copy=t=>navigator.clipboard.writeText(t).then(()=>toast('Disalin'),()=>toast('Gagal menyalin',false));
-let session=null,dashTab='home';
+let session=null,dashTab='home',invEdit=null;
 
 function toast(m,ok=true){const t=$('#toast');t.textContent=m;t.className='fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg '+(ok?'bg-emerald-600':'bg-red-600');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.add('hidden'),3800)}
 async function withLoading(btn,fn){const o=btn.innerHTML;btn.disabled=true;btn.innerHTML='<span class="spin"></span> Memproses...';try{await fn()}catch(e){console.error(e);toast(e.message||'Terjadi kesalahan. Coba lagi.',false)}finally{btn.disabled=false;btn.innerHTML=o}}
@@ -74,7 +78,7 @@ document.addEventListener('change',e=>{const i=e.target;if(i.type==='file'&&i.fi
 /* ============ ROUTER ============ */
 async function route(){
   const h=location.hash.replace(/^#\/?/,'');
-  if(h.startsWith('store/')){const [p,q]=h.split('?');return viewStore(decodeURIComponent(p.split('/')[1]||''),new URLSearchParams(q||'').get('ref'))}
+  if(h.startsWith('store/')){const [p,q]=h.split('?');const sp=new URLSearchParams(q||'');return viewStore(decodeURIComponent(p.split('/')[1]||''),sp.get('ref'),sp.get('p'))}
   const {data}=await sb.auth.getSession();session=data.session;
   return session?viewDash():viewAuth();
 }
@@ -120,23 +124,26 @@ function viewAuth(mode='login'){
 }
 
 /* ============ DASHBOARD ============ */
-const NAV=[['home','🏠','Beranda'],['products','📦','Produk'],['orders','🧾','Pesanan'],['affiliate','🤝','Afiliasi'],['settings','⚙️','Pengaturan']];
+const NAV=[['home','🏠','Beranda'],['products','📦','Produk'],['orders','🧾','Pesanan'],['affiliate','🤝','Afiliasi'],['invoice','📄','Invoice'],['settings','⚙️','Setelan']];
 const stCls=s=>s==='Lunas'?'bg-emerald-50 text-emerald-700':s==='Dibatalkan'?'bg-slate-100 text-slate-500':'bg-amber-50 text-amber-700';
 
 async function viewDash(){
   loadingView();
   const uid=session.user.id;
-  const [p,pr,o,af,st]=await Promise.all([
+  const [p,pr,o,af,st,iv,ev,dr]=await Promise.all([
     sb.from('profiles').select('*').eq('id',uid).single(),
     sb.from('products').select('*').eq('user_id',uid).order('created_at',{ascending:false}),
     sb.from('orders').select('*, products(title, price)').order('created_at',{ascending:false}),
-    sb.from('affiliates').select('code,created_at,profiles!affiliates_user_id_fkey(username,store_name)').eq('seller_id',uid),
-    sb.rpc('affiliate_stats')
+    sb.from('affiliates').select('id,code,created_at,profiles!affiliates_user_id_fkey(username,store_name)').eq('seller_id',uid),
+    sb.rpc('affiliate_stats'),
+    sb.from('invoices').select('*').order('created_at',{ascending:false}),
+    sb.from('store_events').select('type,created_at').gte('created_at',new Date(Date.now()-30*864e5).toISOString()).order('created_at',{ascending:false}).limit(5000),
+    sb.from('profiles').select('id,username,store_name,avatar_url,affiliate_rate,affiliate_note,products(id,title,category,price,affiliate_enabled,affiliate_rate)').eq('affiliate_enabled',true)
   ]);
-  const err=p.error||pr.error||o.error||af.error||st.error;
-  if(err){app.innerHTML=`<div class="min-h-screen grid place-items-center p-6 text-center"><div class="max-w-sm"><p class="font-bold">Gagal memuat data</p><p class="text-sm text-slate-500 mt-1">${esc(err.message)}</p><p class="text-xs text-slate-400 mt-2">Pastikan schema.sql dan schema_v2.sql sudah dijalankan.</p><button class="btn mt-4" onclick="viewDash()">Coba lagi</button> <button class="btn btn-danger mt-4" id="lo0">Keluar</button></div></div>`;$('#lo0').onclick=async()=>{await sb.auth.signOut();viewAuth()};return}
-  const P=p.data,prods=pr.data,orders=o.data,mine=af.data,myAff=st.data||[];
-  const pm=P.payment_methods||{};
+  const err=p.error||pr.error||o.error||af.error||st.error||iv.error||ev.error||dr.error;
+  if(err){app.innerHTML=`<div class="min-h-screen grid place-items-center p-6 text-center"><div class="max-w-sm"><p class="font-bold">Gagal memuat data</p><p class="text-sm text-slate-500 mt-1">${esc(err.message)}</p><p class="text-xs text-slate-400 mt-2">Pastikan schema.sql, schema_v2.sql, dan schema_v3.sql sudah dijalankan.</p><button class="btn mt-4" onclick="viewDash()">Coba lagi</button> <button class="btn btn-danger mt-4" id="lo0">Keluar</button></div></div>`;$('#lo0').onclick=async()=>{await sb.auth.signOut();viewAuth()};return}
+  const P=p.data,prods=pr.data,orders=o.data,mine=af.data,myAff=st.data||[];const invoices=iv.data,dir=dr.data||[];EV=ev.data||[];
+  const pm=P.payment_methods||{};const CTX={P,prods,orders,mine,myAff,invoices,dir,uid,pm};
   const paid=orders.filter(x=>x.status==='Lunas'),pending=orders.filter(x=>x.status==='Menunggu Pembayaran');
   const revenue=paid.reduce((s,x)=>s+Number(x.products?.price||0)-Number(x.commission||0),0);
   const link=`${baseUrl()}#/store/${P.username}`;
@@ -150,8 +157,9 @@ async function viewDash(){
     <p class="text-sm text-slate-600 mt-1">${esc(x.buyer_name)} · ${esc(x.buyer_whatsapp)}</p>
     <p class="text-xs text-slate-400">${esc(x.buyer_email)} · ${new Date(x.created_at).toLocaleString('id-ID')}</p>
     <p class="text-xs text-slate-500 mt-1">Pembayaran: <b>${esc(x.payment_method||'-')}</b>${x.affiliate_code?` · Afiliasi <b>${esc(x.affiliate_code)}</b> (komisi ${rp(x.commission)})`:''}</p>
-    <div class="flex items-center justify-between mt-3"><p class="font-bold text-indigo-600">${rp(x.products?.price)}</p><div class="flex gap-2">
+    <div class="flex items-center justify-between gap-2 mt-3"><p class="font-bold text-indigo-600">${rp(x.products?.price)}</p><div class="flex gap-1.5 flex-wrap justify-end">
       <a class="btn btn-ghost !py-1 !px-3 text-xs" target="_blank" rel="noopener" href="https://wa.me/${waNum(x.buyer_whatsapp)}">Chat</a>
+      <button class="btn btn-ghost !py-1 !px-3 text-xs" data-oedit="${x.id}">Ubah</button><button class="btn btn-ghost !py-1 !px-3 text-xs" data-oinv="${x.id}">Invoice</button><button class="btn btn-danger !py-1 !px-3 text-xs" data-odel="${x.id}">Hapus</button>
       ${x.status!=='Lunas'?`<button class="btn !py-1 !px-3 text-xs" data-st="${x.id}|Lunas">Tandai lunas</button>`:''}
       ${x.status==='Menunggu Pembayaran'?`<button class="btn btn-danger !py-1 !px-3 text-xs" data-st="${x.id}|Dibatalkan">Batalkan</button>`:''}</div></div></div>`;
 
@@ -166,7 +174,7 @@ async function viewDash(){
     <div class="grid grid-cols-3 gap-3 mt-3">
       ${[['Produk',prods.length],['Pesanan',orders.length],['Menunggu bayar',pending.length]].map(([l,v])=>`<div class="card p-4"><p class="text-[11px] text-slate-500">${l}</p><p class="text-2xl font-extrabold mt-1">${v}</p></div>`).join('')}
     </div>
-    <div class="card p-4 mt-3"><p class="font-bold text-sm mb-3">Pesanan 7 hari terakhir</p>
+    <div id="vc"></div><div class="card p-4 mt-3"><p class="font-bold text-sm mb-3">Pesanan 7 hari terakhir</p>
       <div class="flex items-end gap-2 h-28">${cnt.map((c,i)=>`<div class="flex-1 text-center"><div class="rounded-lg mx-auto w-full" style="height:${Math.max(6,c/mx*88)}px;background:${c?'linear-gradient(#818cf8,#6366f1)':'#e5e7eb'}"></div><p class="text-[10px] text-slate-400 mt-1">${days[i].getDate()}</p></div>`).join('')}</div></div>
     <div class="flex items-center justify-between mt-5 mb-2"><p class="font-bold">Pesanan terbaru</p><button class="text-sm text-indigo-600 font-semibold" data-tab="orders">Lihat semua</button></div>
     ${orders.slice(0,3).map(orderRow).join('')||'<div class="card p-6 text-center text-sm text-slate-500">Belum ada pesanan. Bagikan link toko Anda untuk mulai menerima pesanan.</div>'}`;
@@ -177,26 +185,8 @@ async function viewDash(){
       <div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(x.title)}</p><p class="text-xs text-slate-500">${esc(x.category)}</p><p class="text-indigo-600 font-bold text-sm mt-0.5">${rp(x.price)}</p></div>
       <div class="flex flex-col gap-1.5"><button class="btn btn-ghost !py-1 !px-3 text-xs" data-edit="${x.id}">Ubah</button><button class="btn btn-danger !py-1 !px-3 text-xs" data-del="${x.id}">Hapus</button></div></div>`).join(''):'<div class="card p-8 text-center text-slate-500 text-sm">Belum ada produk. Tambahkan produk pertama Anda.</div>'}`;
   if(dashTab==='orders')body=`<h2 class="font-extrabold text-xl mb-3">Pesanan</h2>${orders.map(orderRow).join('')||'<div class="card p-8 text-center text-slate-500 text-sm">Belum ada pesanan.</div>'}`;
-  if(dashTab==='affiliate'){
-    const aOrders=c=>orders.filter(x=>x.affiliate_code===c);
-    body=`<h2 class="font-extrabold text-xl mb-3">Afiliasi</h2>
-    <p class="sec !mt-0">PROGRAM AFILIASI TOKO SAYA</p>
-    <form id="afp" class="card p-4 space-y-3">
-      <label class="flex items-center justify-between text-sm font-semibold">Buka program afiliasi<input type="checkbox" name="en" class="w-5 h-5 accent-indigo-600" ${P.affiliate_enabled?'checked':''}></label>
-      <div><p class="text-xs text-slate-500 mb-1">Komisi per penjualan (%)</p><input class="inp" type="number" name="rate" min="1" max="90" value="${P.affiliate_rate??10}"></div>
-      <button class="btn w-full" type="submit">Simpan program</button>
-      <p class="text-xs text-slate-400">Afiliasi mendaftar lewat menu ini dengan memasukkan username toko Anda (@${esc(P.username)}). Komisi dibayar manual oleh Anda setelah pesanan lunas.</p>
-    </form>
-    <p class="sec">AFILIATOR TOKO SAYA (${mine.length})</p>
-    ${mine.map(a=>{const os=aOrders(a.code),c=os.filter(x=>x.status==='Lunas').reduce((s,x)=>s+Number(x.commission||0),0);
-      return `<div class="card p-3 mb-2 flex justify-between items-center text-sm"><div><p class="font-semibold">@${esc(a.profiles?.username||'-')}</p><p class="text-xs text-slate-400">Kode ${esc(a.code)} · ${os.length} pesanan</p></div><p class="font-bold text-emerald-600">${rp(c)}</p></div>`}).join('')||'<div class="card p-5 text-center text-sm text-slate-500">Belum ada afiliator.</div>'}
-    <p class="sec">SAYA SEBAGAI AFILIATOR</p>
-    <form id="jn" class="card p-4 flex gap-2"><input class="inp" name="u" placeholder="Username toko, mis. tokokopi" required><button class="btn" type="submit">Gabung</button></form>
-    <div class="mt-3">${myAff.map(a=>{const l=`${baseUrl()}#/store/${a.seller_username}?ref=${a.code}`;
-      return `<div class="card p-4 mb-2"><div class="flex justify-between"><p class="font-semibold">${esc(a.seller_name||a.seller_username)}</p><span class="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full h-fit">${a.rate}% komisi</span></div>
-      <div class="mt-2 flex items-center gap-2 bg-slate-50 rounded-xl p-2 text-xs"><span class="truncate flex-1">${esc(l)}</span><button class="btn btn-ghost !py-1 !px-3 text-xs" data-copy="${esc(l)}">Salin</button></div>
-      <div class="grid grid-cols-3 gap-2 mt-3 text-center text-xs"><div><p class="text-slate-400">Pesanan</p><p class="font-bold">${a.orders}</p></div><div><p class="text-slate-400">Menunggu</p><p class="font-bold">${rp(a.pending)}</p></div><div><p class="text-slate-400">Diperoleh</p><p class="font-bold text-emerald-600">${rp(a.earned)}</p></div></div></div>`}).join('')||'<div class="card p-5 text-center text-sm text-slate-500">Anda belum bergabung ke program afiliasi toko mana pun.</div>'}</div>`;
-  }
+  if(dashTab==='affiliate')body=affiliateBody(CTX);
+  if(dashTab==='invoice')body=invoiceBody(CTX);
   if(dashTab==='settings')body=`<h2 class="font-extrabold text-xl mb-3">Pengaturan</h2>
     <form id="pf" class="card p-5 space-y-3">
       ${fileField('banner','Banner toko',P.banner_url)}${fileField('avatar','Foto profil',P.avatar_url)}
@@ -215,19 +205,19 @@ async function viewDash(){
 
   app.innerHTML=`
   <aside class="hidden md:flex fixed inset-y-0 left-0 w-60 flex-col p-4 text-white" style="background:linear-gradient(180deg,#4338ca,#6d28d9)">
-    <div class="flex items-center gap-3 px-2 py-3"><div class="w-10 h-10 rounded-xl bg-white/20 grid place-items-center font-extrabold">T</div><p class="font-extrabold text-lg">TokoAqsha</p></div>
+    <div class="flex items-center gap-3 px-2 py-3"><div class="w-10 h-10 rounded-xl bg-white/20 grid place-items-center font-extrabold">T</div><p class="font-extrabold text-lg">TokoKilat</p></div>
     <nav class="nav mt-4 space-y-1">${NAV.map(([k,i,l])=>`<a data-tab="${k}" class="${dashTab===k?'on':''}"><span>${i}</span>${l}</a>`).join('')}</nav>
     <a href="#/store/${esc(P.username)}" class="mt-auto btn !bg-white !text-indigo-700">Lihat toko publik</a>
   </aside>
-  <div class="md:pl-60"><main class="max-w-2xl mx-auto px-4 pt-5 pb-28 md:pb-10">
+  <div class="md:pl-60"><main class="${dashTab==='invoice'&&invEdit?'max-w-6xl':'max-w-2xl'} mx-auto px-4 pt-5 pb-28 md:pb-10">
     <header class="flex items-center gap-3 mb-5"><div class="w-11 h-11 rounded-full bg-indigo-100 overflow-hidden grid place-items-center font-bold text-indigo-600">${avatar}</div>
     <div class="flex-1"><p class="text-xs text-slate-500">Halo,</p><p class="font-extrabold leading-tight">${esc(P.store_name)}</p></div>
     <a href="#/store/${esc(P.username)}" class="md:hidden text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-2 rounded-xl">Toko saya</a></header>
     ${body}</main></div>
-  <nav class="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-100 grid grid-cols-5">
-    ${NAV.map(([k,i,l])=>`<a data-tab="${k}" class="py-2.5 text-center text-[11px] font-semibold cursor-pointer ${dashTab===k?'text-indigo-600':'text-slate-400'}"><span class="block text-lg leading-none">${i}</span>${l}</a>`).join('')}</nav>`;
+  <nav class="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-100 grid grid-cols-6">
+    ${NAV.map(([k,i,l])=>`<a data-tab="${k}" class="py-2.5 text-center text-[10px] font-semibold cursor-pointer ${dashTab===k?'text-indigo-600':'text-slate-400'}"><span class="block text-lg leading-none">${i}</span>${l}</a>`).join('')}</nav>`;
 
-  $$('[data-tab]').forEach(a=>a.onclick=()=>{dashTab=a.dataset.tab;viewDash()});
+  $$('[data-tab]').forEach(a=>a.onclick=()=>{dashTab=a.dataset.tab;if(dashTab!=='invoice')invEdit=null;viewDash()});
   $$('[data-copy]').forEach(b=>b.onclick=()=>copy(b.dataset.copy));
   if($('#cp'))$('#cp').onclick=()=>copy(link);
   if($('#addp'))$('#addp').onclick=()=>productForm();
@@ -237,7 +227,7 @@ async function viewDash(){
   $$('[data-st]').forEach(b=>b.onclick=()=>{const [id,s]=b.dataset.st.split('|');
     withLoading(b,async()=>{const {error}=await sb.from('orders').update({status:s}).eq('id',id);if(error)throw error;toast('Status diperbarui');viewDash()})});
   if($('#afp'))$('#afp').onsubmit=e=>{e.preventDefault();const f=e.target;
-    withLoading($('button',f),async()=>{const {error}=await sb.from('profiles').update({affiliate_enabled:f.elements.en.checked,affiliate_rate:Number(f.elements.rate.value)||10}).eq('id',uid);if(error)throw error;toast('Program afiliasi disimpan');viewDash()})};
+    withLoading($('button',f),async()=>{const {error}=await sb.from('profiles').update({affiliate_enabled:f.elements.en.checked,affiliate_rate:Number(f.elements.rate.value)||10,affiliate_note:f.elements.note.value}).eq('id',uid);if(error)throw error;toast('Program afiliasi disimpan');viewDash()})};
   if($('#jn'))$('#jn').onsubmit=e=>{e.preventDefault();const u=e.target.elements.u.value.trim().toLowerCase().replace(/^@/,'');
     withLoading($('button',e.target),async()=>{
       const {data:s}=await sb.from('profiles').select('id,affiliate_enabled').eq('username',u).maybeSingle();
@@ -256,6 +246,7 @@ async function viewDash(){
       const {error}=await sb.from('profiles').update({store_name:E.store_name.value,bio:E.bio.value,whatsapp_number:waNum(E.wa.value),avatar_url,banner_url,payment_methods}).eq('id',uid);
       if(error)throw error;toast('Pengaturan disimpan');viewDash()})};
   if($('#lo'))$('#lo').onclick=async()=>{await sb.auth.signOut();session=null;viewAuth()};
+  bindExtra(CTX);drawChart();
 }
 
 function productForm(x={}){
@@ -267,23 +258,240 @@ function productForm(x={}){
     <textarea class="inp" name="description" rows="3" placeholder="Deskripsi produk">${esc(x.description)}</textarea>
     ${fileField('image','Gambar produk',x.image_url)}
     <input class="inp" name="digital_file_url" placeholder="Tautan unduhan / catatan akses" value="${esc(x.digital_file_url)}">
+    <div class="bg-indigo-50 rounded-xl p-3 space-y-2"><label class="flex items-center justify-between text-sm font-semibold">Ikut program afiliasi<input type="checkbox" name="aff" class="w-5 h-5 accent-indigo-600" ${x.affiliate_enabled?'checked':''}></label>
+    <input class="inp" type="number" name="arate" min="1" max="90" placeholder="Komisi khusus produk (%) — kosongkan = standar toko" value="${x.affiliate_rate??''}"></div>
     <button class="btn w-full" type="submit">${x.id?'Simpan perubahan':'Tambah produk'}</button></form>`);
   $('#cl').onclick=closeModal;
   $('#prf').onsubmit=e=>{e.preventDefault();const f=e.target,E=f.elements;
     withLoading($('button[type=submit]',f),async()=>{
       const image_url=picked(f,'image')?await upload(picked(f,'image'),'product'):(x.image_url||'');
-      const row={title:E.title.value,category:E.category.value,price:Number(E.price.value),description:E.description.value,image_url,digital_file_url:E.digital_file_url.value};
+      const row={title:E.title.value,category:E.category.value,price:Number(E.price.value),description:E.description.value,image_url,digital_file_url:E.digital_file_url.value,affiliate_enabled:E.aff.checked,affiliate_rate:E.arate.value===''?null:Number(E.arate.value)};
       const {error}=await(x.id?sb.from('products').update(row).eq('id',x.id):sb.from('products').insert({...row,user_id:session.user.id}));
       if(error)throw error;closeModal();toast(x.id?'Produk diperbarui':'Produk ditambahkan');viewDash()})};
 }
 
+/* ===== v3: grafik, aksi pesanan, afiliasi, invoice ===== */
+let EV=[],evRange=14;
+async function track(sid,type,pid=null){try{
+  if(type==='view'){const k='v_'+sid;if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1')}
+  const {data}=await sb.auth.getSession();if(data.session?.user?.id===sid)return;
+  await sb.from('store_events').insert({seller_id:sid,product_id:pid,type});
+}catch(e){}}
+
+function drawChart(){const box=$('#vc');if(!box)return;
+  const days=[...Array(evRange)].map((_,i)=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-(evRange-1)+i);return d});
+  const n=(t,d)=>EV.filter(e=>e.type===t&&new Date(e.created_at).toDateString()===d.toDateString()).length;
+  const v=days.map(d=>n('view',d)),c=days.map(d=>n('click',d)),mx=Math.max(1,...v,...c),sum=a=>a.reduce((s,x)=>s+x,0),step=Math.ceil(evRange/7);
+  box.innerHTML=`<div class="card p-4 mt-3"><div class="flex items-center justify-between"><p class="font-bold text-sm">Total Views &amp; Clicks</p>
+  <select id="evr" class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white">${[7,14,30].map(r=>`<option value="${r}" ${r===evRange?'selected':''}>${r} hari</option>`).join('')}</select></div>
+  <div class="flex gap-6 mt-3"><div><p class="text-xs text-slate-500"><span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 mr-1"></span>Views</p><p class="text-2xl font-extrabold">${sum(v)}</p></div>
+  <div><p class="text-xs text-slate-500"><span class="inline-block w-2.5 h-2.5 rounded-full bg-indigo-500 mr-1"></span>Clicks</p><p class="text-2xl font-extrabold">${sum(c)}</p></div></div>
+  <div class="relative mt-4"><p class="absolute -top-1 left-0 text-[10px] text-slate-400">${mx}</p>
+  <div class="flex items-end gap-1 h-40 border-b border-slate-200 pl-4">${days.map((d,i)=>`<div class="flex-1 h-full flex items-end justify-center gap-[2px]" title="${d.getDate()}/${d.getMonth()+1}: ${v[i]} views, ${c[i]} clicks"><div class="w-full max-w-[10px] rounded-t bg-amber-400" style="height:${v[i]/mx*100}%;min-height:${v[i]?3:0}px"></div><div class="w-full max-w-[10px] rounded-t bg-indigo-500" style="height:${c[i]/mx*100}%;min-height:${c[i]?3:0}px"></div></div>`).join('')}</div>
+  <div class="flex gap-1 mt-1 pl-4">${days.map((d,i)=>`<p class="flex-1 text-center text-[9px] text-slate-400">${i%step===0?d.getDate()+'/'+(d.getMonth()+1):''}</p>`).join('')}</div></div>
+  <p class="text-[11px] text-slate-400 mt-2">Views = kunjungan toko (1x per sesi pengunjung). Clicks = klik tombol "Beli sekarang".</p></div>`;
+  $('#evr').onchange=e=>{evRange=+e.target.value;drawChart()};
+}
+
+function orderForm(o){
+  openModal(`<div class="flex justify-between items-center mb-4"><h3 class="font-extrabold text-lg">Ubah pesanan</h3><button id="cl" class="text-slate-400 text-2xl" aria-label="Tutup">&times;</button></div>
+  <form id="orf" class="space-y-3"><input class="inp" name="n" value="${esc(o.buyer_name)}" placeholder="Nama pembeli" required>
+  <input class="inp" name="w" value="${esc(o.buyer_whatsapp)}" placeholder="WhatsApp" required>
+  <input class="inp" type="email" name="e" value="${esc(o.buyer_email)}" placeholder="Email" required>
+  <input class="inp" name="pm" value="${esc(o.payment_method)}" placeholder="Metode pembayaran">
+  <select class="inp" name="s">${['Menunggu Pembayaran','Lunas','Dibatalkan'].map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}</select>
+  <button class="btn w-full" type="submit">Simpan perubahan</button></form>`);
+  $('#cl').onclick=closeModal;
+  $('#orf').onsubmit=e=>{e.preventDefault();const E=e.target.elements;
+    withLoading($('button',e.target),async()=>{const {error}=await sb.from('orders').update({buyer_name:E.n.value,buyer_whatsapp:waNum(E.w.value),buyer_email:E.e.value,payment_method:E.pm.value,status:E.s.value}).eq('id',o.id);
+      if(error)throw error;closeModal();toast('Pesanan diperbarui');viewDash()})};
+}
+
+async function joinStore(u,uid){
+  const {data:s}=await sb.from('profiles').select('id,affiliate_enabled').eq('username',u).maybeSingle();
+  if(!s)throw new Error('Toko tidak ditemukan.');
+  if(!s.affiliate_enabled)throw new Error('Toko ini belum membuka program afiliasi.');
+  if(s.id===uid)throw new Error('Anda tidak bisa menjadi afiliasi toko sendiri.');
+  const {error}=await sb.from('affiliates').insert({seller_id:s.id,user_id:uid,code:Math.random().toString(36).slice(2,8)});
+  if(error)throw new Error(error.code==='23505'?'Anda sudah bergabung di toko ini.':error.message);
+  toast('Berhasil bergabung. Salin link afiliasi Anda.');viewDash();
+}
+
+function bindExtra(C){
+  $$('[data-oedit]').forEach(b=>b.onclick=()=>orderForm(C.orders.find(x=>x.id===b.dataset.oedit)));
+  $$('[data-odel]').forEach(b=>b.onclick=()=>{if(!confirm('Hapus pesanan ini?'))return;
+    withLoading(b,async()=>{const {error}=await sb.from('orders').delete().eq('id',b.dataset.odel);if(error)throw error;toast('Pesanan dihapus');viewDash()})});
+  $$('[data-oinv]').forEach(b=>b.onclick=()=>{invEdit=newInvoice(C,C.orders.find(x=>x.id===b.dataset.oinv));dashTab='invoice';viewDash()});
+  $$('[data-adel]').forEach(b=>b.onclick=()=>{if(!confirm('Hapus afiliator ini dari program Anda?'))return;
+    withLoading(b,async()=>{const {error}=await sb.from('affiliates').delete().eq('id',b.dataset.adel);if(error)throw error;toast('Afiliator dihapus');viewDash()})});
+  $$('[data-aleave]').forEach(b=>b.onclick=()=>{if(!confirm('Keluar dari program afiliasi toko ini? Link Anda tidak akan aktif lagi.'))return;
+    withLoading(b,async()=>{const {error}=await sb.from('affiliates').delete().eq('code',b.dataset.aleave);if(error)throw error;toast('Anda keluar dari program');viewDash()})});
+  $$('[data-join]').forEach(b=>b.onclick=()=>withLoading(b,()=>joinStore(b.dataset.join,C.uid)));
+  if($('#invnew'))$('#invnew').onclick=()=>{invEdit=newInvoice(C);viewDash()};
+  $$('[data-iedit]').forEach(b=>b.onclick=()=>{const r=C.invoices.find(x=>x.id===b.dataset.iedit);invEdit={id:r.id,data:structuredClone(r.data)};viewDash()});
+  $$('[data-idup]').forEach(b=>b.onclick=()=>withLoading(b,async()=>{const r=C.invoices.find(x=>x.id===b.dataset.idup),dd=structuredClone(r.data);dd.no=r.number+'-COPY';dd.status='Draft';
+    const {error}=await sb.from('invoices').insert({user_id:C.uid,number:dd.no,client_name:r.client_name,total:r.total,status:'Draft',data:dd});if(error)throw error;toast('Invoice diduplikat');viewDash()}));
+  $$('[data-idel]').forEach(b=>b.onclick=()=>{if(!confirm('Hapus invoice ini?'))return;
+    withLoading(b,async()=>{const {error}=await sb.from('invoices').delete().eq('id',b.dataset.idel);if(error)throw error;toast('Invoice dihapus');viewDash()})});
+  if($('#invf'))bindInvoice();
+}
+
+function affiliateBody(C){
+  const {P,prods,orders,mine,myAff,dir,uid}=C;
+  const joined=new Set(myAff.map(a=>a.seller_username));
+  const chips=ps=>{const m={};ps.forEach(p=>m[p.category]=(m[p.category]||0)+1);return Object.entries(m).map(([k,v])=>`<span class="text-[11px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">${esc(k)} · ${v}</span>`).join(' ')||'<span class="text-xs text-slate-400">Belum ada produk dalam program</span>'};
+  const ap=prods.filter(x=>x.affiliate_enabled),R=(p,d)=>Number(p.affiliate_rate??d??0);
+  const note=t=>t?`<p class="text-xs text-slate-500 bg-slate-50 rounded-xl p-2 mt-2" style="white-space:pre-line">${esc(t)}</p>`:'';
+  const storeCard=s=>{const sp=(s.products||[]).filter(p=>p.affiliate_enabled);
+    return `<div class="card p-4 mb-3"><div class="flex justify-between gap-2"><div><p class="font-semibold">${esc(s.store_name)}</p><p class="text-xs text-slate-400">@${esc(s.username)} · ${sp.length} produk</p></div><span class="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded-full h-fit">s.d. ${Math.max(R(s,s.affiliate_rate),...sp.map(p=>R(p,s.affiliate_rate)))}%</span></div>
+    <div class="flex flex-wrap gap-1 mt-2">${chips(sp)}</div>${note(s.affiliate_note)}
+    <button class="btn w-full mt-3" data-join="${esc(s.username)}">Gabung program</button></div>`};
+  return `<h2 class="font-extrabold text-xl mb-3">Afiliasi</h2>
+  <p class="sec !mt-0">PROGRAM AFILIASI TOKO SAYA</p>
+  <form id="afp" class="card p-4 space-y-3">
+    <label class="flex items-center justify-between text-sm font-semibold">Buka program afiliasi<input type="checkbox" name="en" class="w-5 h-5 accent-indigo-600" ${P.affiliate_enabled?'checked':''}></label>
+    <div><p class="text-xs text-slate-500 mb-1">Komisi standar (%) — bisa diatur khusus per produk</p><input class="inp" type="number" name="rate" min="1" max="90" value="${P.affiliate_rate??10}"></div>
+    <div><p class="text-xs text-slate-500 mb-1">Catatan untuk afiliator (syarat, materi promosi, dll.)</p><textarea class="inp" name="note" rows="3">${esc(P.affiliate_note)}</textarea></div>
+    <button class="btn w-full" type="submit">Simpan program</button>
+    <p class="text-xs text-slate-400">Pilih produk yang ikut program lewat tombol Ubah pada menu Produk. Komisi dibayar manual setelah pesanan lunas.</p>
+  </form>
+  <div class="card p-4 mt-3"><p class="font-bold text-sm">Produk dalam program (${ap.length} dari ${prods.length})</p><div class="flex flex-wrap gap-1 mt-2">${chips(ap)}</div>
+    ${ap.map(x=>`<div class="flex justify-between text-sm mt-2"><span class="truncate pr-2">${esc(x.title)} <span class="text-xs text-slate-400">· ${esc(x.category)}</span></span><span class="font-semibold text-emerald-600 shrink-0">${R(x,P.affiliate_rate)}% = ${rp(Number(x.price)*R(x,P.affiliate_rate)/100)}</span></div>`).join('')}</div>
+  <p class="sec">AFILIATOR TOKO SAYA (${mine.length})</p>
+  ${mine.map(a=>{const os=orders.filter(x=>x.affiliate_code===a.code),c=os.filter(x=>x.status==='Lunas').reduce((s,x)=>s+Number(x.commission||0),0);
+    return `<div class="card p-3 mb-2 flex justify-between items-center gap-2 text-sm"><div class="min-w-0"><p class="font-semibold truncate">@${esc(a.profiles?.username||'-')}</p><p class="text-xs text-slate-400">Kode ${esc(a.code)} · ${os.length} pesanan</p></div><div class="text-right shrink-0"><p class="font-bold text-emerald-600">${rp(c)}</p><button class="text-xs text-red-500 font-semibold" data-adel="${a.id}">Hapus</button></div></div>`}).join('')||'<div class="card p-5 text-center text-sm text-slate-500">Belum ada afiliator.</div>'}
+  <p class="sec">SAYA SEBAGAI AFILIATOR</p>
+  <form id="jn" class="card p-4 flex gap-2"><input class="inp" name="u" placeholder="Username toko, mis. tokokopi" required><button class="btn" type="submit">Gabung</button></form>
+  <div class="mt-3">${myAff.map(a=>{const s=dir.find(x=>x.username===a.seller_username),sp=(s?.products||[]).filter(p=>p.affiliate_enabled),base=`${baseUrl()}#/store/${a.seller_username}?ref=${a.code}`;
+    return `<div class="card p-4 mb-3"><div class="flex justify-between gap-2"><p class="font-semibold">${esc(a.seller_name||a.seller_username)}</p><span class="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full h-fit">${a.rate}% standar</span></div>
+    <div class="flex flex-wrap gap-1 mt-2">${chips(sp)}</div>${note(s?.affiliate_note)}
+    <div class="mt-2 flex items-center gap-2 bg-slate-50 rounded-xl p-2 text-xs"><span class="truncate flex-1">${esc(base)}</span><button class="btn btn-ghost !py-1 !px-3 text-xs" data-copy="${esc(base)}">Link toko</button></div>
+    ${sp.map(p=>`<div class="flex justify-between items-center gap-2 text-sm mt-2"><div class="min-w-0"><p class="truncate">${esc(p.title)}</p><p class="text-xs text-slate-400">${esc(p.category)} · ${rp(p.price)} · komisi ${rp(Number(p.price)*R(p,s.affiliate_rate)/100)}</p></div><button class="btn btn-ghost !py-1 !px-3 text-xs shrink-0" data-copy="${esc(base+'&p='+p.id)}">Salin link</button></div>`).join('')}
+    <div class="grid grid-cols-3 gap-2 mt-3 text-center text-xs"><div><p class="text-slate-400">Pesanan</p><p class="font-bold">${a.orders}</p></div><div><p class="text-slate-400">Menunggu</p><p class="font-bold">${rp(a.pending)}</p></div><div><p class="text-slate-400">Diperoleh</p><p class="font-bold text-emerald-600">${rp(a.earned)}</p></div></div>
+    <button class="text-xs text-red-500 font-semibold mt-3" data-aleave="${esc(a.code)}">Keluar dari program</button></div>`}).join('')||'<div class="card p-5 text-center text-sm text-slate-500">Anda belum bergabung ke program afiliasi toko mana pun.</div>'}</div>
+  <p class="sec">JELAJAHI PROGRAM AFILIASI</p>
+  ${dir.filter(s=>s.id!==uid&&!joined.has(s.username)).map(storeCard).join('')||'<div class="card p-5 text-center text-sm text-slate-500">Belum ada toko lain yang membuka program afiliasi.</div>'}`;
+}
+
+/* ---- Invoice ---- */
+const fmtD=s=>s?new Date(s+'T00:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}):'';
+function invCalc(d){const sub=d.items.reduce((s,i)=>s+(+i.q||0)*(+i.p||0),0),disc=+d.discount||0,tax=Math.max(0,sub-disc)*(+d.tax||0)/100;return{sub,disc,tax,total:sub-disc+tax}}
+
+function newInvoice(C,order){
+  const P=C.P,pm=P.payment_methods||{},b=(pm.banks||[])[0]||{},today=new Date().toISOString().slice(0,10),due=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
+  return {id:null,data:{no:'INV-'+today.replace(/-/g,'')+'-'+String(C.invoices.length+1).padStart(3,'0'),date:today,due,status:'Belum Dibayar',color:'#0f6b7a',
+    brand:{name:P.store_name||'',tag:'',logo:P.avatar_url||'',phone:P.whatsapp_number||'',email:'',web:`${baseUrl()}#/store/${P.username}`,addr:''},
+    bill:{name:order?.buyer_name||'',company:'',phone:order?.buyer_whatsapp||'',addr:order?.buyer_email||''},
+    items:order?[{d:order.products?.title||'',q:1,p:order.products?.price||0}]:[{d:'',q:1,p:0}],tax:0,discount:0,
+    pay:{info:b.bank?`Bank: ${b.bank}\nNo. Rekening: ${b.no}\nAtas nama: ${b.name||''}`:''},terms:'Pembayaran paling lambat pada tanggal jatuh tempo.',
+    sign:{img:'',stamp:'',name:'',title:''},thanks:'TERIMA KASIH ATAS KEPERCAYAAN ANDA'}};
+}
+
+function invHTML(d){
+  const c=d.color||'#0f6b7a',t=invCalc(d),L=v=>esc(v||''),pl='white-space:pre-line';
+  const img=(u,s)=>safeUrl(u)?`<img src="${esc(u)}" crossorigin="anonymous" style="${s}" alt="">`:'';
+  const th=(a,w)=>`<th style="padding:10px 12px;text-align:${a};width:${w};font-size:11px;letter-spacing:.06em">`;
+  const tr=(l,v)=>`<div style="display:flex;justify-content:space-between;padding:6px 12px"><span>${l}</span><span>${v}</span></div>`;
+  return `<div style="width:794px;min-height:1123px;background:#fff;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#1e293b;display:flex;flex-direction:column;box-sizing:border-box">
+  <div style="background:${c};color:#fff;padding:36px 44px;display:flex;justify-content:space-between;align-items:flex-start">
+    <div style="display:flex;align-items:center;gap:14px">${img(d.brand.logo,'height:64px;max-width:140px;object-fit:contain')}<div><div style="font-size:24px;font-weight:800">${L(d.brand.name)}</div><div style="font-size:11px;letter-spacing:.15em;opacity:.85">${L(d.brand.tag)}</div></div></div>
+    <div style="text-align:right"><div style="font-size:40px;font-weight:800;letter-spacing:.05em;line-height:1">INVOICE</div><div style="font-size:12px;line-height:1.8;margin-top:8px">No: ${L(d.no)}<br>Tanggal: ${fmtD(d.date)}<br>Jatuh tempo: ${fmtD(d.due)}</div></div></div>
+  <div style="display:flex;justify-content:space-between;gap:20px;padding:24px 44px;font-size:12px;line-height:1.7">
+    <div style="max-width:320px;${pl}"><b style="color:${c}">KONTAK</b>\n${L(d.brand.phone)}\n${L(d.brand.email)}\n${L(d.brand.web)}\n${L(d.brand.addr)}</div>
+    <div style="max-width:300px;text-align:right;${pl}"><b style="color:${c}">DITAGIH KEPADA</b>\n<b>${L(d.bill.name)}</b>\n${L(d.bill.company)}\n${L(d.bill.phone)}\n${L(d.bill.addr)}</div></div>
+  <table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:${c};color:#fff">${th('center','60px')}NO</th>${th('left','auto')}DESKRIPSI PRODUK</th>${th('right','120px')}HARGA</th>${th('center','60px')}QTY</th>${th('right','130px')}TOTAL</th></tr></thead>
+  <tbody>${d.items.map((it,i)=>`<tr style="background:${i%2?'#fff':c+'14'}"><td style="padding:12px;text-align:center">${String(i+1).padStart(2,'0')}</td><td style="padding:12px">${L(it.d)}</td><td style="padding:12px;text-align:right">${rp(it.p)}</td><td style="padding:12px;text-align:center">${+it.q||0}</td><td style="padding:12px;text-align:right;font-weight:700">${rp((+it.q||0)*(+it.p||0))}</td></tr>`).join('')}</tbody></table>
+  <div style="display:flex;justify-content:space-between;gap:28px;padding:24px 44px;font-size:12px;line-height:1.7">
+    <div style="flex:1"><b style="color:${c}">INFO PEMBAYARAN</b><div style="${pl}">${L(d.pay.info)}</div><b style="color:${c};display:block;margin-top:14px">SYARAT &amp; KETENTUAN</b><div style="${pl}">${L(d.terms)}</div></div>
+    <div style="width:270px"><div style="border:1px solid ${c}33;border-bottom:0;border-radius:8px 8px 0 0;padding:4px 0">${tr('Sub Total',rp(t.sub))}${t.disc?tr('Diskon','-'+rp(t.disc)):''}${tr('Pajak ('+(+d.tax||0)+'%)',rp(t.tax))}</div>
+      <div style="background:${c};color:#fff;display:flex;justify-content:space-between;padding:12px;font-weight:800;font-size:14px;border-radius:0 0 8px 8px"><span>Grand Total</span><span>${rp(t.total)}</span></div>
+      <div style="position:relative;height:120px;margin-top:20px">${img(d.sign.stamp,'position:absolute;left:8px;top:0;height:92px;opacity:.85;object-fit:contain')}${img(d.sign.img,'position:absolute;left:50%;transform:translateX(-50%);top:8px;height:70px;object-fit:contain')}
+        <div style="position:absolute;bottom:0;left:0;right:0;border-top:1px solid #94a3b8;padding-top:4px;text-align:center"><b>${L(d.sign.name)}</b><br><span style="color:#64748b">${L(d.sign.title)}</span></div></div></div></div>
+  <div style="margin-top:auto;padding:0 44px 16px;text-align:right;color:${c};font-weight:800;font-size:12px;letter-spacing:.08em">${L(d.thanks)}</div><div style="height:14px;background:${c}"></div></div>`;
+}
+
+async function invCanvas(d){
+  const host=document.createElement('div');host.style.cssText='position:fixed;left:-10000px;top:0';host.innerHTML=invHTML(d);document.body.appendChild(host);
+  try{await Promise.all([...host.querySelectorAll('img')].map(i=>i.complete?1:new Promise(r=>{i.onload=i.onerror=r})));
+    return await html2canvas(host.firstElementChild,{scale:2,useCORS:true,backgroundColor:'#ffffff'})}finally{host.remove()}
+}
+async function invExport(d,kind){
+  const cv=await invCanvas(d),name='Invoice-'+(d.no||'draft').replace(/[^\w-]/g,'_');
+  if(kind==='jpg'){const a=document.createElement('a');a.download=name+'.jpg';a.href=cv.toDataURL('image/jpeg',.95);a.click();return}
+  const pdf=new window.jspdf.jsPDF({unit:'mm',format:'a4'}),w=210,ph=Math.floor(cv.width*297/210);
+  for(let y=0,pg=0;y<cv.height;y+=ph,pg++){const s=document.createElement('canvas');s.width=cv.width;s.height=Math.min(ph,cv.height-y);
+    s.getContext('2d').drawImage(cv,0,y,cv.width,s.height,0,0,cv.width,s.height);if(pg)pdf.addPage();pdf.addImage(s.toDataURL('image/jpeg',.95),'JPEG',0,0,w,s.height*w/cv.width)}
+  pdf.save(name+'.pdf');
+}
+function invPrint(d){
+  let r=$('#print-root');if(!r){r=document.createElement('div');r.id='print-root';document.body.appendChild(r)}
+  r.innerHTML=invHTML(d);
+  Promise.all([...r.querySelectorAll('img')].map(i=>i.complete?1:new Promise(z=>{i.onload=i.onerror=z}))).then(()=>window.print());
+}
+addEventListener('afterprint',()=>{const r=$('#print-root');if(r)r.innerHTML=''});
+function fitInv(){const w=$('#invwrap'),p=$('#invprev');if(!w||!p)return;const s=Math.min(1,w.clientWidth/794);p.style.transform=`scale(${s})`;w.style.height=(p.offsetHeight*s)+'px'}
+addEventListener('resize',fitInv);
+
+const FL=l=>`<p class="text-[11px] font-semibold text-slate-500 mb-1">${l}</p>`;
+const FI=(k,l,v,t='text')=>`<div>${FL(l)}<input class="inp" type="${t}" data-k="${k}" value="${esc(v)}"></div>`;
+const FT=(k,l,v,r=3)=>`<div>${FL(l)}<textarea class="inp" rows="${r}" data-k="${k}">${esc(v)}</textarea></div>`;
+const FG=(k,l)=>`<div>${FL(l)}<div class="flex items-center gap-2"><input type="file" accept="image/*" data-imgk="${k}" class="text-xs flex-1 min-w-0"><button type="button" class="text-xs text-red-500 font-semibold" data-imgclear="${k}">Hapus</button></div></div>`;
+const itemsHTML=its=>its.map((it,i)=>`<div class="flex gap-1.5 items-center"><input class="inp !px-2 flex-1 min-w-0" placeholder="Deskripsi" data-i="${i}" data-f="d" value="${esc(it.d)}"><input class="inp !px-2 w-14" type="number" min="0" placeholder="Qty" data-i="${i}" data-f="q" value="${it.q}"><input class="inp !px-2 w-24" type="number" min="0" placeholder="Harga" data-i="${i}" data-f="p" value="${it.p}"><button type="button" class="text-red-500 text-xl px-1" data-rm="${i}" aria-label="Hapus item">&times;</button></div>`).join('');
+
+function invoiceBody(C){
+  if(invEdit)return invEditor();
+  return `<div class="flex items-center justify-between mb-3"><h2 class="font-extrabold text-xl">Invoice</h2><button id="invnew" class="btn">+ Buat invoice</button></div>
+  ${C.invoices.length?C.invoices.map(x=>`<div class="card p-4 mb-3"><div class="flex justify-between gap-2"><div class="min-w-0"><p class="font-semibold truncate">${esc(x.number)}</p><p class="text-xs text-slate-500 truncate">${esc(x.client_name||'-')} · ${new Date(x.created_at).toLocaleDateString('id-ID')}</p></div><span class="text-xs font-semibold px-2 py-1 rounded-full h-fit ${x.status==='Lunas'?'bg-emerald-50 text-emerald-700':'bg-amber-50 text-amber-700'}">${esc(x.status)}</span></div>
+  <div class="flex items-center justify-between mt-3"><p class="font-bold text-indigo-600">${rp(x.total)}</p><div class="flex gap-1.5"><button class="btn btn-ghost !py-1 !px-3 text-xs" data-iedit="${x.id}">Ubah</button><button class="btn btn-ghost !py-1 !px-3 text-xs" data-idup="${x.id}">Duplikat</button><button class="btn btn-danger !py-1 !px-3 text-xs" data-idel="${x.id}">Hapus</button></div></div></div>`).join(''):'<div class="card p-8 text-center text-sm text-slate-500">Belum ada invoice. Buat invoice lengkap dengan logo, tanda tangan, dan stempel, lalu ekspor ke PDF/JPG atau cetak.</div>'}`;
+}
+function invEditor(){
+  const d=invEdit.data;
+  return `<div class="flex items-center justify-between gap-2 flex-wrap mb-3"><button id="invback" class="text-sm font-semibold text-indigo-600">← Daftar invoice</button>
+  <div class="flex gap-2 flex-wrap"><button id="invsave" class="btn !py-2">Simpan</button><button id="invpdf" class="btn btn-ghost !py-2">PDF</button><button id="invjpg" class="btn btn-ghost !py-2">JPG</button><button id="invprint" class="btn btn-ghost !py-2">Cetak</button></div></div>
+  <div class="grid lg:grid-cols-[380px_1fr] gap-4 items-start">
+  <form id="invf" class="card p-4 space-y-3 lg:max-h-[80vh] lg:overflow-y-auto" onsubmit="return false">
+    <p class="sec !mt-0">INVOICE</p>${FI('no','Nomor invoice',d.no)}<div class="grid grid-cols-2 gap-2">${FI('date','Tanggal',d.date,'date')}${FI('due','Jatuh tempo',d.due,'date')}</div>
+    <div>${FL('Status')}<select class="inp" data-k="status">${['Draft','Belum Dibayar','Lunas'].map(s=>`<option ${d.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    ${FI('color','Warna tema',d.color,'color')}
+    <p class="sec">MEREK / PENJUAL</p>${FG('brand.logo','Logo (unggah gambar)')}${FI('brand.name','Nama merek',d.brand.name)}${FI('brand.tag','Tagline',d.brand.tag)}${FI('brand.phone','Telepon',d.brand.phone)}${FI('brand.email','Email',d.brand.email)}${FI('brand.web','Website',d.brand.web)}${FT('brand.addr','Alamat',d.brand.addr,2)}
+    <p class="sec">DITAGIH KEPADA</p>${FI('bill.name','Nama',d.bill.name)}${FI('bill.company','Perusahaan',d.bill.company)}${FI('bill.phone','Telepon',d.bill.phone)}${FT('bill.addr','Alamat / email',d.bill.addr,2)}
+    <p class="sec">ITEM</p><div id="invitems" class="space-y-2">${itemsHTML(d.items)}</div><button type="button" class="btn btn-ghost w-full !py-2" data-add>+ Tambah item</button>
+    <div class="grid grid-cols-2 gap-2">${FI('tax','Pajak (%)',d.tax,'number')}${FI('discount','Diskon (Rp)',d.discount,'number')}</div>
+    <p class="sec">PEMBAYARAN &amp; SYARAT</p>${FT('pay.info','Info pembayaran',d.pay.info,3)}${FT('terms','Syarat & ketentuan',d.terms,3)}
+    <p class="sec">TANDA TANGAN</p>${FG('sign.img','Tanda tangan / paraf (PNG transparan disarankan)')}${FG('sign.stamp','Stempel')}${FI('sign.name','Nama penanda tangan',d.sign.name)}${FI('sign.title','Jabatan',d.sign.title)}${FI('thanks','Teks penutup',d.thanks)}
+  </form>
+  <div><div id="invwrap" class="overflow-hidden rounded-xl shadow-lg bg-white"><div id="invprev" style="width:794px;transform-origin:top left"></div></div></div></div>`;
+}
+function bindInvoice(){
+  const f=$('#invf'),d=invEdit.data;
+  const set=(k,v)=>{const ks=k.split('.');let o=d;ks.slice(0,-1).forEach(x=>o=o[x]);o[ks[ks.length-1]]=v};
+  const upd=()=>{$('#invprev').innerHTML=invHTML(d);fitInv()};
+  f.addEventListener('input',e=>{const t=e.target;if(t.dataset.k){set(t.dataset.k,t.value);upd()}else if(t.dataset.i!==undefined){d.items[t.dataset.i][t.dataset.f]=t.value;upd()}});
+  f.addEventListener('change',async e=>{const t=e.target,k=t.dataset.imgk;if(!k||!t.files[0])return;
+    try{toast('Mengunggah gambar...');set(k,await upload(t.files[0],'invoice'));upd();toast('Gambar ditambahkan')}catch(er){toast(er.message,false)}});
+  f.addEventListener('click',e=>{const t=e.target;
+    if(t.dataset.imgclear){set(t.dataset.imgclear,'');const i=$(`[data-imgk="${t.dataset.imgclear}"]`);if(i)i.value='';upd()}
+    if('add' in t.dataset){d.items.push({d:'',q:1,p:0});$('#invitems').innerHTML=itemsHTML(d.items);upd()}
+    if(t.dataset.rm!==undefined&&d.items.length>1){d.items.splice(+t.dataset.rm,1);$('#invitems').innerHTML=itemsHTML(d.items);upd()}});
+  upd();
+  $('#invback').onclick=()=>{invEdit=null;viewDash()};
+  $('#invsave').onclick=e=>withLoading(e.currentTarget,async()=>{
+    const row={user_id:session.user.id,number:d.no,client_name:d.bill.name,total:invCalc(d).total,status:d.status,data:d,updated_at:new Date().toISOString()};
+    if(invEdit.id){const {error}=await sb.from('invoices').update(row).eq('id',invEdit.id);if(error)throw error}
+    else{const {data,error}=await sb.from('invoices').insert(row).select('id').single();if(error)throw error;invEdit.id=data.id}
+    toast('Invoice disimpan')});
+  $('#invpdf').onclick=e=>withLoading(e.currentTarget,()=>invExport(d,'pdf'));
+  $('#invjpg').onclick=e=>withLoading(e.currentTarget,()=>invExport(d,'jpg'));
+  $('#invprint').onclick=()=>invPrint(d);
+}
+
 /* ============ TOKO PUBLIK ============ */
-async function viewStore(username,ref){
+async function viewStore(username,ref,pid){
   loadingView();
   const {data:p,error}=await sb.from('profiles').select('*').eq('username',username.toLowerCase()).maybeSingle();
   if(error||!p){app.innerHTML=`<div class="min-h-screen grid place-items-center p-6 text-center"><div><p class="text-5xl">🔍</p><p class="font-extrabold text-lg mt-3">Toko tidak ditemukan</p><p class="text-sm text-slate-500 mt-1">Periksa kembali link yang Anda buka.</p><a href="#/" class="btn mt-4">Ke beranda</a></div></div>`;return}
   const {data:prods=[]}=await sb.from('products').select('*').eq('user_id',p.id).order('created_at',{ascending:false});
-  document.title=p.store_name+' - TokoAqsha';
+  document.title=p.store_name+' - TokoKilat';
   const cats=['Semua',...new Set(prods.map(x=>x.category))];
   const ban=safeUrl(p.banner_url)?`url('${esc(p.banner_url)}') center/cover`:'linear-gradient(135deg,#4f46e5,#8b5cf6 60%,#c084fc)';
   const render=cat=>{$('#grid').innerHTML=prods.filter(x=>cat==='Semua'||x.category===cat).map(x=>`
@@ -292,7 +500,7 @@ async function viewStore(username,ref){
       <div class="p-4 flex flex-col flex-1"><span class="text-[11px] font-semibold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full w-fit">${esc(x.category)}</span>
       <h3 class="font-bold mt-2">${esc(x.title)}</h3>${x.description?`<p class="text-sm text-slate-500 mt-1 line-clamp-3">${esc(x.description)}</p>`:''}
       <div class="flex items-center justify-between mt-auto pt-3"><p class="text-lg font-extrabold text-indigo-600">${rp(x.price)}</p><button class="btn" data-buy="${x.id}">Beli sekarang</button></div></div></div>`).join('')||'<div class="card p-8 text-center text-slate-500 text-sm sm:col-span-2">Belum ada produk di kategori ini.</div>';
-    $$('[data-buy]').forEach(b=>b.onclick=()=>checkout(prods.find(x=>x.id===b.dataset.buy),p,ref))};
+    $$('[data-buy]').forEach(b=>b.onclick=()=>{track(p.id,'click',b.dataset.buy);checkout(prods.find(x=>x.id===b.dataset.buy),p,ref)})};
   app.innerHTML=`<div class="max-w-2xl mx-auto pb-12">
     <div class="h-40 sm:h-52 sm:rounded-b-3xl" style="background:${ban}"></div>
     <div class="px-4 -mt-12 text-center">
@@ -303,8 +511,8 @@ async function viewStore(username,ref){
     </div>
     ${cats.length>2?`<div id="cats" class="px-4 mt-6 flex gap-2 overflow-x-auto">${cats.map((c,i)=>`<button data-c="${esc(c)}" class="shrink-0 px-4 py-2 rounded-full text-sm font-semibold ${i?'bg-white text-slate-600':'bg-indigo-600 text-white'}">${esc(c)}</button>`).join('')}</div>`:''}
     <div id="grid" class="px-4 mt-4 grid gap-4 sm:grid-cols-2"></div>
-    <p class="text-center text-xs text-slate-400 mt-10">Dibuat dengan TokoAqsha</p></div>`;
-  render('Semua');
+    <p class="text-center text-xs text-slate-400 mt-10">Dibuat dengan TokoKilat</p></div>`;
+  render('Semua');track(p.id,'view');if(pid){const tp=prods.find(x=>x.id===pid);if(tp)checkout(tp,p,ref)}
   $$('#cats [data-c]').forEach(b=>b.onclick=()=>{$$('#cats [data-c]').forEach(x=>x.className='shrink-0 px-4 py-2 rounded-full text-sm font-semibold bg-white text-slate-600');b.className='shrink-0 px-4 py-2 rounded-full text-sm font-semibold bg-indigo-600 text-white';render(b.dataset.c)});
 }
 
@@ -341,7 +549,7 @@ function checkout(prod,seller,ref){
       const o=opts.length?opts[Number(f.pay)]:{k:'Konfirmasi via WhatsApp',type:'other',note:'Pembayaran dikonfirmasi lewat WhatsApp.'};
       let code=null,commission=0;
       if(ref&&seller.affiliate_enabled){const {data:a}=await sb.from('affiliates').select('code').eq('code',ref).eq('seller_id',seller.id).maybeSingle();
-        if(a){code=a.code;commission=Math.round(Number(prod.price)*Number(seller.affiliate_rate||0)/100)}}
+        if(a&&prod.affiliate_enabled){code=a.code;commission=Math.round(Number(prod.price)*Number(prod.affiliate_rate??seller.affiliate_rate??0)/100)}}
       const {error}=await sb.from('orders').insert({id:crypto.randomUUID(),product_id:prod.id,buyer_name:f.name,buyer_email:f.email,buyer_whatsapp:waNum(f.wa),status:'Menunggu Pembayaran',payment_method:o.k,affiliate_code:code,commission});
       if(error)throw new Error('Pesanan gagal disimpan. Coba lagi sebentar lagi.');
       const msg=`Halo, saya ingin memesan ${prod.title} seharga ${rp(prod.price)}.\nMetode pembayaran: ${o.k}\n\nData saya:\nNama: ${f.name}\nWhatsApp: ${f.wa}\nEmail: ${f.email}\n\nSaya sudah/akan melakukan pembayaran. Terima kasih!`;
