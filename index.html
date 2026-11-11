@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TokoKilat - Instant Store</title>
+<title>Toko AQSHA - Instant Store</title>
 <link rel="icon" id="fav" href="data:,">
 <meta property="og:title" content=""><meta property="og:description" content=""><meta property="og:image" content=""><meta name="twitter:card" content="summary_large_image">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -204,7 +204,7 @@ async function viewDash(){
   app.innerHTML=`
   <aside class="hidden md:flex fixed inset-y-0 left-0 w-60 flex-col p-4 text-white overflow-hidden" style="background:linear-gradient(180deg,var(--c1),var(--c2))">
     <div class="absolute -right-12 top-24 w-44 h-44 rounded-full bg-white/10 pointer-events-none"></div><div class="absolute -left-10 bottom-32 w-36 h-36 rounded-full bg-white/10 pointer-events-none"></div><svg class="absolute bottom-0 left-0 w-full pointer-events-none" viewBox="0 0 240 90" fill="#fff" fill-opacity=".08"><path d="M0 40 C60 10 120 70 240 30 V90 H0Z"/></svg>
-    <div class="flex items-center gap-3 px-2 py-3"><div class="w-10 h-10 rounded-xl bg-white/20 grid place-items-center font-extrabold">T</div><p class="font-extrabold text-lg">TokoKilat</p></div>
+    <div class="flex items-center gap-3 px-2 py-3"><div class="w-10 h-10 rounded-xl bg-white/20 grid place-items-center font-extrabold">T</div><p class="font-extrabold text-lg">Toko AQSHA</p></div>
     <nav class="nav mt-4 space-y-1">${NAV.map(([k,i,l])=>`<a data-tab="${k}" class="${dashTab===k?'on':''}"><span>${i}</span>${l}</a>`).join('')}</nav>
     <div class="mt-auto space-y-2 relative"><a href="#/store/${esc(P.username)}" class="btn w-full !bg-white !text-indigo-700">Lihat toko publik</a><button data-logout class="btn w-full !bg-white/15 hover:!bg-white/25">Keluar</button></div>
   </aside>
@@ -484,7 +484,7 @@ const PAL=[['Indigo','#4f46e5','#7c3aed'],['Teal','#0f766e','#06b6d4'],['Hijau',
 function applyTheme(a,b){const s=document.documentElement.style;s.setProperty('--c1',a||'#4f46e5');s.setProperty('--c2',b||'#7c3aed')}
 function setMeta(t,d,img,fav){document.title=t;const f=$('#fav');if(f)f.href=safeUrl(fav)||'data:,';
   [['og:title',t],['og:description',d||''],['og:image',safeUrl(img)]].forEach(([k,v])=>{const m=$(`meta[property="${k}"]`);if(m)m.content=v||''})}
-function resetTheme(){applyTheme();const s=document.documentElement.style;s.removeProperty('--br');s.removeProperty('--cr');document.body.style.background='';setMeta('TokoKilat - Instant Store','','','')}
+function resetTheme(){applyTheme();const s=document.documentElement.style;s.removeProperty('--br');s.removeProperty('--cr');document.body.style.background='';setMeta('Toko AQSHA - Instant Store','','','')}
 
 function decorHTML(k){
   const c='color-mix(in srgb,var(--c1) 22%,transparent)',bg=s=>`<div style="position:absolute;inset:0;${s}"></div>`;
@@ -561,7 +561,7 @@ async function viewStore(username,ref,pid){
   st.setProperty('--br',{pill:'999px',square:'.3rem'}[T.btn]||'.75rem');
   st.setProperty('--cr',T.card==='sharp'?'.4rem':T.card==='outline'?'1rem':'1.25rem');
   document.body.style.background='color-mix(in srgb,var(--c1) 6%,#fff)';
-  setMeta(p.store_name+' - TokoKilat',p.bio,p.thumbnail_url||p.banner_url||p.avatar_url,p.favicon_url||p.avatar_url);
+  setMeta(p.store_name+' - Toko AQSHA',p.bio,p.thumbnail_url||p.banner_url||p.avatar_url,p.favicon_url||p.avatar_url);
   const {data:prods=[]}=await sb.from('products').select('*').eq('user_id',p.id).order('created_at',{ascending:false});
   const cs=T.card==='outline'?'box-shadow:none;border:1.5px solid color-mix(in srgb,var(--c1) 40%,#fff)':T.card==='sharp'?'box-shadow:4px 4px 0 var(--c1);border:2px solid var(--c1)':'';
   const cats=['Semua',...new Set(prods.map(x=>x.category))],list=T.layout==='list';
@@ -588,7 +588,7 @@ async function viewStore(username,ref,pid){
     </div>
     ${cats.length>2?`<div id="cats" class="px-4 mt-6 flex gap-2 overflow-x-auto pb-1">${cats.map(c=>`<button data-c="${esc(c)}" class="shrink-0 px-4 py-2 rounded-full text-sm font-semibold shadow-sm">${esc(c)}</button>`).join('')}</div>`:''}
     <div id="grid" class="px-4 mt-4 grid gap-4 ${list?'':'sm:grid-cols-2'}"></div>
-    <p class="text-center text-xs text-slate-400 mt-10">Dibuat dengan TokoKilat</p></div>`;
+    <p class="text-center text-xs text-slate-400 mt-10">Dibuat dengan Toko AQSHA</p></div>`;
   render('Semua');track(p.id,'view');if(pid){const tp=prods.find(x=>x.id===pid);if(tp)checkout(tp,p,ref)}
   $('#sh').onclick=()=>copy(baseUrl()+'#/store/'+p.username);
   $$('#cats [data-c]').forEach((b,i)=>{pill(b,i===0);b.onclick=()=>{$$('#cats [data-c]').forEach(x=>pill(x,false));pill(b,true);render(b.dataset.c)}});
