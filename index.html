@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Toko AQSHA - Instant Store</title>
+<title>TokoKilat - Instant Store</title>
+<link rel="icon" id="fav" href="data:,">
+<meta property="og:title" content=""><meta property="og:description" content=""><meta property="og:image" content=""><meta name="twitter:card" content="summary_large_image">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -11,13 +13,13 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script>tailwind.config={theme:{extend:{fontFamily:{sans:['"Plus Jakarta Sans"','system-ui','sans-serif']}}}};</script>
 <style>
-body{background:#f4f3fb}
-.card{background:#fff;border-radius:1.25rem;box-shadow:0 1px 2px rgba(79,70,229,.06),0 10px 30px rgba(79,70,229,.07)}
+body{background:radial-gradient(700px 320px at 95% -5%,color-mix(in srgb,var(--c2) 20%,transparent),transparent),radial-gradient(600px 380px at -8% 25%,color-mix(in srgb,var(--c1) 14%,transparent),transparent),#f6f5fc;background-attachment:fixed}
+.card{background:#fff;border-radius:var(--cr,1.25rem);box-shadow:0 1px 2px rgba(79,70,229,.06),0 10px 30px rgba(79,70,229,.07)}
 .inp{width:100%;border:1px solid #e5e7eb;border-radius:.75rem;padding:.7rem .9rem;font-size:.9rem;background:#fff;outline:none}
-.inp:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.18)}
-.btn{background:#4f46e5;color:#fff;font-weight:600;border-radius:.75rem;padding:.7rem 1.1rem;font-size:.9rem;transition:.15s;display:inline-flex;align-items:center;justify-content:center;gap:.5rem}
-.btn:hover{background:#4338ca}.btn:disabled{opacity:.6;cursor:not-allowed}
-.btn-ghost{background:#eef2ff;color:#4f46e5}.btn-ghost:hover{background:#e0e7ff}
+.inp:focus{border-color:var(--c1);box-shadow:0 0 0 3px color-mix(in srgb,var(--c1) 22%,transparent)}
+.btn{background:var(--c1);color:#fff;font-weight:600;border-radius:var(--br,.75rem);padding:.7rem 1.1rem;font-size:.9rem;transition:.15s;display:inline-flex;align-items:center;justify-content:center;gap:.5rem}
+.btn:hover{filter:brightness(.9)}.btn:disabled{opacity:.6;cursor:not-allowed}
+.btn-ghost{background:color-mix(in srgb,var(--c1) 12%,#fff);color:var(--c1)}.btn-ghost:hover{background:color-mix(in srgb,var(--c1) 20%,#fff);filter:none}
 .btn-danger{background:#fef2f2;color:#dc2626}.btn-danger:hover{background:#fee2e2}
 .spin{width:1rem;height:1rem;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite}
 .spin.dark{border-color:#c7d2fe;border-top-color:#4f46e5}
@@ -26,6 +28,14 @@ body{background:#f4f3fb}
 .nav a.on,.nav a:hover{background:rgba(255,255,255,.16);color:#fff}
 .sec{font-size:.7rem;font-weight:700;color:#94a3b8;margin:1rem 0 .4rem}
 :focus-visible{outline:2px solid #6366f1;outline-offset:2px}
+:root{--c1:#4f46e5;--c2:#7c3aed;--g:linear-gradient(135deg,var(--c1),var(--c2))}
+.text-indigo-600,.text-indigo-700{color:var(--c1)!important}
+.bg-indigo-600,.bg-indigo-500{background:var(--c1)!important}
+.bg-indigo-50{background:color-mix(in srgb,var(--c1) 10%,#fff)!important}
+.bg-indigo-100{background:color-mix(in srgb,var(--c1) 20%,#fff)!important}
+.accent-indigo-600{accent-color:var(--c1)}
+.has-\[\:checked\]\:border-indigo-500:has(:checked){border-color:var(--c1)!important}
+.has-\[\:checked\]\:bg-indigo-50:has(:checked){background:color-mix(in srgb,var(--c1) 10%,#fff)!important}
 #print-root{display:none}
 @media print{@page{size:A4;margin:0}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{background:#fff}body>*:not(#print-root){display:none!important}#print-root{display:block!important}}
 </style>
@@ -36,8 +46,8 @@ body{background:#f4f3fb}
 <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] hidden px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg"></div>
 <script>
 /* ============ KONFIGURASI ============ */
-const SUPABASE_URL='https://obvrduoscrdklfofxgkk.supabase.co';
-const SUPABASE_ANON_KEY='sb_publishable_g6s3vnbsS3HD0TO8sOYXlA_qS_W6Vm-';
+const SUPABASE_URL='ISI_SUPABASE_URL_ANDA';
+const SUPABASE_ANON_KEY='ISI_SUPABASE_ANON_KEY_ANDA';
 /* ====================================== */
 if(!/^https:\/\/.+\.supabase\.co/.test(SUPABASE_URL)||SUPABASE_ANON_KEY.startsWith('ISI_')){
   document.body.innerHTML='<div style="padding:2rem;font-family:sans-serif;max-width:32rem;margin:auto"><h2>Konfigurasi belum diisi</h2><p>Isi SUPABASE_URL dan SUPABASE_ANON_KEY di index.html, lalu muat ulang.</p></div>';
@@ -87,7 +97,7 @@ sb.auth.onAuthStateChange((_e,s)=>{session=s});
 route();
 
 /* ============ AUTH ============ */
-function viewAuth(mode='login'){
+function viewAuth(mode='login'){resetTheme();
   const reg=mode==='register';
   app.innerHTML=`<div class="min-h-screen flex items-center justify-center p-4" style="background:radial-gradient(900px 400px at 50% -10%,#e0e7ff,transparent)">
   <div class="w-full max-w-sm">
@@ -143,6 +153,7 @@ async function viewDash(){
   const err=p.error||pr.error||o.error||af.error||st.error||iv.error||ev.error||dr.error;
   if(err){app.innerHTML=`<div class="min-h-screen grid place-items-center p-6 text-center"><div class="max-w-sm"><p class="font-bold">Gagal memuat data</p><p class="text-sm text-slate-500 mt-1">${esc(err.message)}</p><p class="text-xs text-slate-400 mt-2">Pastikan schema.sql, schema_v2.sql, dan schema_v3.sql sudah dijalankan.</p><button class="btn mt-4" onclick="viewDash()">Coba lagi</button> <button class="btn btn-danger mt-4" id="lo0">Keluar</button></div></div>`;$('#lo0').onclick=async()=>{await sb.auth.signOut();viewAuth()};return}
   const P=p.data,prods=pr.data,orders=o.data,mine=af.data,myAff=st.data||[];const invoices=iv.data,dir=dr.data||[];EV=ev.data||[];
+  applyTheme(P.theme?.dash?.c1,P.theme?.dash?.c2);{const rs=document.documentElement.style;rs.removeProperty('--br');rs.removeProperty('--cr')}document.body.style.background='';setMeta('Dashboard - '+P.store_name,'','',P.favicon_url);
   const pm=P.payment_methods||{};const CTX={P,prods,orders,mine,myAff,invoices,dir,uid,pm};
   const paid=orders.filter(x=>x.status==='Lunas'),pending=orders.filter(x=>x.status==='Menunggu Pembayaran');
   const revenue=paid.reduce((s,x)=>s+Number(x.products?.price||0)-Number(x.commission||0),0);
@@ -165,17 +176,18 @@ async function viewDash(){
 
   let body='';
   if(dashTab==='home')body=`
-    <div class="rounded-3xl p-5 text-white relative overflow-hidden" style="background:linear-gradient(135deg,#4f46e5,#7c3aed)">
+    <div class="rounded-3xl p-5 text-white relative overflow-hidden shadow-xl" style="background:var(--g)">
+      <svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 400 200" preserveAspectRatio="none"><path d="M0 150 C80 110 140 190 220 150 S340 110 400 140 V200 H0Z" fill="#fff" fill-opacity=".14"/><path d="M0 175 C100 145 180 200 280 170 S370 150 400 165 V200 H0Z" fill="#fff" fill-opacity=".1"/><circle cx="340" cy="40" r="62" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="2"/><circle cx="340" cy="40" r="38" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="2"/><g fill="#fff" fill-opacity=".35"><circle cx="30" cy="30" r="2"/><circle cx="50" cy="30" r="2"/><circle cx="70" cy="30" r="2"/><circle cx="30" cy="50" r="2"/><circle cx="50" cy="50" r="2"/><circle cx="70" cy="50" r="2"/></g></svg>
       <div class="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-white/10"></div><div class="absolute right-10 -bottom-10 w-28 h-28 rounded-full bg-white/10"></div>
       <p class="text-sm text-indigo-100 relative">Pendapatan bersih (pesanan lunas)</p>
       <p class="text-3xl font-extrabold mt-1 relative">${rp(revenue)}</p>
       <div class="mt-4 flex items-center gap-2 bg-white/15 rounded-xl p-2 text-xs relative"><span class="truncate flex-1">${esc(link)}</span><button id="cp" class="bg-white text-indigo-700 font-semibold rounded-lg px-3 py-1.5">Salin</button></div>
     </div>
     <div class="grid grid-cols-3 gap-3 mt-3">
-      ${[['Produk',prods.length],['Pesanan',orders.length],['Menunggu bayar',pending.length]].map(([l,v])=>`<div class="card p-4"><p class="text-[11px] text-slate-500">${l}</p><p class="text-2xl font-extrabold mt-1">${v}</p></div>`).join('')}
+      ${[['Produk',prods.length],['Pesanan',orders.length],['Menunggu bayar',pending.length]].map(([l,v],i)=>`<div class="card p-4 relative overflow-hidden"><div class="absolute -right-4 -top-4 w-16 h-16 rounded-full opacity-15" style="background:var(--g);opacity:.15"></div><div class="w-9 h-9 rounded-xl grid place-items-center text-lg text-white mb-2" style="background:var(--g)">${['📦','🧾','⏳'][i]}</div><p class="text-[11px] text-slate-500">${l}</p><p class="text-2xl font-extrabold">${v}</p></div>`).join('')}
     </div>
     <div id="vc"></div><div class="card p-4 mt-3"><p class="font-bold text-sm mb-3">Pesanan 7 hari terakhir</p>
-      <div class="flex items-end gap-2 h-28">${cnt.map((c,i)=>`<div class="flex-1 text-center"><div class="rounded-lg mx-auto w-full" style="height:${Math.max(6,c/mx*88)}px;background:${c?'linear-gradient(#818cf8,#6366f1)':'#e5e7eb'}"></div><p class="text-[10px] text-slate-400 mt-1">${days[i].getDate()}</p></div>`).join('')}</div></div>
+      <div class="flex items-end gap-2 h-28">${cnt.map((c,i)=>`<div class="flex-1 text-center"><div class="rounded-lg mx-auto w-full" style="height:${Math.max(6,c/mx*88)}px;background:${c?'linear-gradient(var(--c2),var(--c1))':'#e5e7eb'}"></div><p class="text-[10px] text-slate-400 mt-1">${days[i].getDate()}</p></div>`).join('')}</div></div>
     <div class="flex items-center justify-between mt-5 mb-2"><p class="font-bold">Pesanan terbaru</p><button class="text-sm text-indigo-600 font-semibold" data-tab="orders">Lihat semua</button></div>
     ${orders.slice(0,3).map(orderRow).join('')||'<div class="card p-6 text-center text-sm text-slate-500">Belum ada pesanan. Bagikan link toko Anda untuk mulai menerima pesanan.</div>'}`;
   if(dashTab==='products')body=`
@@ -187,32 +199,19 @@ async function viewDash(){
   if(dashTab==='orders')body=`<h2 class="font-extrabold text-xl mb-3">Pesanan</h2>${orders.map(orderRow).join('')||'<div class="card p-8 text-center text-slate-500 text-sm">Belum ada pesanan.</div>'}`;
   if(dashTab==='affiliate')body=affiliateBody(CTX);
   if(dashTab==='invoice')body=invoiceBody(CTX);
-  if(dashTab==='settings')body=`<h2 class="font-extrabold text-xl mb-3">Pengaturan</h2>
-    <form id="pf" class="card p-5 space-y-3">
-      ${fileField('banner','Banner toko',P.banner_url)}${fileField('avatar','Foto profil',P.avatar_url)}
-      <input class="inp" name="store_name" value="${esc(P.store_name)}" placeholder="Nama toko" required>
-      <textarea class="inp" name="bio" rows="3" placeholder="Bio singkat">${esc(P.bio)}</textarea>
-      <input class="inp" name="wa" value="${esc(P.whatsapp_number)}" placeholder="Nomor WhatsApp" inputmode="tel" required>
-      <p class="sec !mb-0">METODE PEMBAYARAN</p>
-      ${fileField('qris','Gambar QRIS',pm.qris)}
-      <div><p class="text-xs text-slate-500 mb-1">Transfer bank (satu per baris: Bank|No. Rekening|Atas Nama)</p><textarea class="inp" name="banks" rows="3" placeholder="BCA|1234567890|Budi Santoso">${esc((pm.banks||[]).map(b=>[b.bank,b.no,b.name].join('|')).join('\n'))}</textarea></div>
-      <div><p class="text-xs text-slate-500 mb-1">E-Wallet (satu per baris: Nama|Nomor)</p><textarea class="inp" name="ews" rows="3" placeholder="DANA|081234567890">${esc((pm.ewallets||[]).map(w=>[w.name,w.no].join('|')).join('\n'))}</textarea></div>
-      <input class="inp" name="other" value="${esc(pm.other)}" placeholder="Metode lain (mis. Bayar di tempat / PayPal)">
-      <p class="text-xs text-slate-400">Username: @${esc(P.username)}</p>
-      <button class="btn w-full" type="submit">Simpan pengaturan</button>
-    </form>
-    <button id="lo" class="btn btn-danger w-full mt-3">Keluar</button>`;
+  if(dashTab==='settings')body=settingsBody(CTX);
 
   app.innerHTML=`
-  <aside class="hidden md:flex fixed inset-y-0 left-0 w-60 flex-col p-4 text-white" style="background:linear-gradient(180deg,#4338ca,#6d28d9)">
-    <div class="flex items-center gap-3 px-2 py-3"><div class="w-10 h-10 rounded-xl bg-white/20 grid place-items-center font-extrabold">T</div><p class="font-extrabold text-lg">Toko AQSHA</p></div>
+  <aside class="hidden md:flex fixed inset-y-0 left-0 w-60 flex-col p-4 text-white overflow-hidden" style="background:linear-gradient(180deg,var(--c1),var(--c2))">
+    <div class="absolute -right-12 top-24 w-44 h-44 rounded-full bg-white/10 pointer-events-none"></div><div class="absolute -left-10 bottom-32 w-36 h-36 rounded-full bg-white/10 pointer-events-none"></div><svg class="absolute bottom-0 left-0 w-full pointer-events-none" viewBox="0 0 240 90" fill="#fff" fill-opacity=".08"><path d="M0 40 C60 10 120 70 240 30 V90 H0Z"/></svg>
+    <div class="flex items-center gap-3 px-2 py-3"><div class="w-10 h-10 rounded-xl bg-white/20 grid place-items-center font-extrabold">T</div><p class="font-extrabold text-lg">TokoKilat</p></div>
     <nav class="nav mt-4 space-y-1">${NAV.map(([k,i,l])=>`<a data-tab="${k}" class="${dashTab===k?'on':''}"><span>${i}</span>${l}</a>`).join('')}</nav>
-    <a href="#/store/${esc(P.username)}" class="mt-auto btn !bg-white !text-indigo-700">Lihat toko publik</a>
+    <div class="mt-auto space-y-2 relative"><a href="#/store/${esc(P.username)}" class="btn w-full !bg-white !text-indigo-700">Lihat toko publik</a><button data-logout class="btn w-full !bg-white/15 hover:!bg-white/25">Keluar</button></div>
   </aside>
   <div class="md:pl-60"><main class="${dashTab==='invoice'&&invEdit?'max-w-6xl':'max-w-2xl'} mx-auto px-4 pt-5 pb-28 md:pb-10">
     <header class="flex items-center gap-3 mb-5"><div class="w-11 h-11 rounded-full bg-indigo-100 overflow-hidden grid place-items-center font-bold text-indigo-600">${avatar}</div>
     <div class="flex-1"><p class="text-xs text-slate-500">Halo,</p><p class="font-extrabold leading-tight">${esc(P.store_name)}</p></div>
-    <a href="#/store/${esc(P.username)}" class="md:hidden text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-2 rounded-xl">Toko saya</a></header>
+    <a href="#/store/${esc(P.username)}" class="md:hidden text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-2 rounded-xl">Toko saya</a><button data-logout class="text-xs font-semibold text-red-500 bg-red-50 px-3 py-2 rounded-xl">Keluar</button></header>
     ${body}</main></div>
   <nav class="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-100 grid grid-cols-6">
     ${NAV.map(([k,i,l])=>`<a data-tab="${k}" class="py-2.5 text-center text-[10px] font-semibold cursor-pointer ${dashTab===k?'text-indigo-600':'text-slate-400'}"><span class="block text-lg leading-none">${i}</span>${l}</a>`).join('')}</nav>`;
@@ -237,14 +236,7 @@ async function viewDash(){
       const {error}=await sb.from('affiliates').insert({seller_id:s.id,user_id:uid,code:Math.random().toString(36).slice(2,8)});
       if(error)throw new Error(error.code==='23505'?'Anda sudah bergabung di toko ini.':error.message);
       toast('Berhasil bergabung. Salin link afiliasi Anda.');viewDash()})};
-  if($('#pf'))$('#pf').onsubmit=e=>{e.preventDefault();const f=e.target;
-    withLoading($('button[type=submit]',f),async()=>{
-      const E=f.elements,lines=t=>t.value.split('\n').map(l=>l.split('|').map(s=>s.trim())).filter(a=>a[0]&&a[1]);
-      const up=async(n,fo,old)=>picked(f,n)?await upload(picked(f,n),fo):old;
-      const [avatar_url,banner_url,qris]=await Promise.all([up('avatar','avatar',P.avatar_url),up('banner','banner',P.banner_url),up('qris','qris',pm.qris)]);
-      const payment_methods={qris:qris||'',banks:lines(E.banks).map(a=>({bank:a[0],no:a[1],name:a[2]||''})),ewallets:lines(E.ews).map(a=>({name:a[0],no:a[1]})),other:E.other.value.trim()};
-      const {error}=await sb.from('profiles').update({store_name:E.store_name.value,bio:E.bio.value,whatsapp_number:waNum(E.wa.value),avatar_url,banner_url,payment_methods}).eq('id',uid);
-      if(error)throw error;toast('Pengaturan disimpan');viewDash()})};
+  bindSettings(CTX);
   if($('#lo'))$('#lo').onclick=async()=>{await sb.auth.signOut();session=null;viewAuth()};
   bindExtra(CTX);drawChart();
 }
@@ -334,6 +326,7 @@ function bindExtra(C){
   $$('[data-idel]').forEach(b=>b.onclick=()=>{if(!confirm('Hapus invoice ini?'))return;
     withLoading(b,async()=>{const {error}=await sb.from('invoices').delete().eq('id',b.dataset.idel);if(error)throw error;toast('Invoice dihapus');viewDash()})});
   if($('#invf'))bindInvoice();
+  $$('[data-logout]').forEach(b=>b.onclick=async()=>{await sb.auth.signOut();session=null;viewAuth()});
 }
 
 function affiliateBody(C){
@@ -486,34 +479,119 @@ function bindInvoice(){
 }
 
 /* ============ TOKO PUBLIK ============ */
+/* ===== v4: tema, setelan, toko publik ===== */
+const PAL=[['Indigo','#4f46e5','#7c3aed'],['Teal','#0f766e','#06b6d4'],['Hijau','#059669','#84cc16'],['Oranye','#ea580c','#f59e0b'],['Pink','#db2777','#f472b6'],['Biru','#2563eb','#38bdf8'],['Slate','#0f172a','#475569']];
+function applyTheme(a,b){const s=document.documentElement.style;s.setProperty('--c1',a||'#4f46e5');s.setProperty('--c2',b||'#7c3aed')}
+function setMeta(t,d,img,fav){document.title=t;const f=$('#fav');if(f)f.href=safeUrl(fav)||'data:,';
+  [['og:title',t],['og:description',d||''],['og:image',safeUrl(img)]].forEach(([k,v])=>{const m=$(`meta[property="${k}"]`);if(m)m.content=v||''})}
+function resetTheme(){applyTheme();const s=document.documentElement.style;s.removeProperty('--br');s.removeProperty('--cr');document.body.style.background='';setMeta('TokoKilat - Instant Store','','','')}
+
+function decorHTML(k){
+  const c='color-mix(in srgb,var(--c1) 22%,transparent)',bg=s=>`<div style="position:absolute;inset:0;${s}"></div>`;
+  if(k==='dots')return bg(`background-image:radial-gradient(${c} 1.6px,transparent 1.6px);background-size:22px 22px`);
+  if(k==='grid')return bg(`background-image:linear-gradient(${c} 1px,transparent 1px),linear-gradient(90deg,${c} 1px,transparent 1px);background-size:34px 34px`);
+  if(k==='stripes')return bg(`background-image:repeating-linear-gradient(45deg,${c} 0 2px,transparent 2px 16px)`);
+  if(k==='blobs')return `<div style="position:absolute;top:120px;right:-90px;width:340px;height:340px;border-radius:50%;background:var(--g);opacity:.2;filter:blur(30px)"></div><div style="position:absolute;bottom:-100px;left:-80px;width:380px;height:380px;border-radius:50%;background:linear-gradient(135deg,var(--c2),var(--c1));opacity:.18;filter:blur(30px)"></div><div style="position:absolute;top:55%;left:8%;width:90px;height:90px;border-radius:30%;border:3px solid var(--c1);opacity:.15;transform:rotate(20deg)"></div>`;
+  if(k==='waves')return `<svg style="position:absolute;bottom:0;left:0;width:100%;height:260px" viewBox="0 0 800 260" preserveAspectRatio="none"><path d="M0 120 C150 60 300 200 450 130 S700 60 800 120 V260 H0Z" style="fill:var(--c1);opacity:.12"/><path d="M0 170 C160 110 320 230 480 170 S720 120 800 170 V260 H0Z" style="fill:var(--c2);opacity:.14"/></svg>`;
+  return '';
+}
+
+/* ---- Setelan ---- */
+const fileUrl=(n,l,url)=>`${fileField(n,l,url)}<input class="inp" name="${n}_url" placeholder="atau tempel URL gambar (https://...)" value="${esc(url)}">`;
+const selF=(n,l,opts,v)=>`<div>${FL(l)}<select class="inp" name="${n}">${opts.map(([k,t])=>`<option value="${k}" ${(v||opts[0][0])===k?'selected':''}>${t}</option>`).join('')}</select></div>`;
+const palRow=(w,a,b)=>`<div class="flex flex-wrap gap-2">${PAL.map(([n,x,y])=>`<button type="button" data-pal="${w}" data-c1="${x}" data-c2="${y}" title="${n}" class="w-9 h-9 rounded-full border-2 border-white shadow ring-1 ring-slate-200" style="background:linear-gradient(135deg,${x},${y})"></button>`).join('')}</div>
+  <div class="grid grid-cols-2 gap-2"><div>${FL('Warna utama')}<input class="inp !p-1 h-11" type="color" name="${w}1" value="${a}"></div><div>${FL('Warna kedua')}<input class="inp !p-1 h-11" type="color" name="${w}2" value="${b}"></div></div>`;
+
+function settingsBody(C){
+  const {P,pm}=C,T=P.theme||{},D=T.dash||{},S=T.store||{};
+  return `<h2 class="font-extrabold text-xl mb-3">Setelan</h2>
+  <form id="pf" class="space-y-3" onsubmit="return false">
+    <div class="card p-4 space-y-3"><p class="sec !mt-0">PROFIL TOKO</p>
+      <div>${FL('Nama toko')}<input class="inp" name="store_name" value="${esc(P.store_name)}" placeholder="Nama toko" required></div>
+      <div>${FL('Bio singkat')}<textarea class="inp" name="bio" rows="3" placeholder="Ceritakan toko Anda">${esc(P.bio)}</textarea></div>
+      <div>${FL('Nomor WhatsApp')}<input class="inp" name="wa" value="${esc(P.whatsapp_number)}" placeholder="0812xxxx" inputmode="tel" required></div>
+      <div>${FL('Link toko (username)')}<input class="inp" name="username" value="${esc(P.username)}" placeholder="namatoko" required>
+        <p id="slugprev" class="text-xs text-indigo-600 mt-1 break-all">${esc(baseUrl())}#/store/${esc(P.username)}</p>
+        <p class="text-[11px] text-slate-400 mt-0.5">Mengganti link membuat link lama tidak berlaku lagi. Berikan link baru ke pelanggan dan afiliator (link afiliator otomatis ikut berubah).</p></div></div>
+    <div class="card p-4 space-y-3"><p class="sec !mt-0">GAMBAR &amp; IDENTITAS</p>
+      ${fileUrl('banner','Banner toko',P.banner_url)}${fileUrl('avatar','Foto profil',P.avatar_url)}
+      ${fileUrl('favicon','Favicon (ikon tab browser, PNG persegi)',P.favicon_url)}${fileUrl('thumb','Thumbnail (gambar saat link dibagikan)',P.thumbnail_url)}
+      <p class="text-[11px] text-slate-400">Favicon dan thumbnail dipasang di halaman toko publik.</p></div>
+    <div class="card p-4 space-y-3"><p class="sec !mt-0">METODE PEMBAYARAN</p>
+      ${fileField('qris','Gambar QRIS',pm.qris)}
+      <div>${FL('Transfer bank (satu per baris: Bank|No. Rekening|Atas Nama)')}<textarea class="inp" name="banks" rows="3" placeholder="BCA|1234567890|Budi Santoso">${esc((pm.banks||[]).map(b=>[b.bank,b.no,b.name].join('|')).join('\n'))}</textarea></div>
+      <div>${FL('E-Wallet (satu per baris: Nama|Nomor)')}<textarea class="inp" name="ews" rows="3" placeholder="DANA|081234567890">${esc((pm.ewallets||[]).map(w=>[w.name,w.no].join('|')).join('\n'))}</textarea></div>
+      <input class="inp" name="other" value="${esc(pm.other)}" placeholder="Metode lain (mis. Bayar di tempat)"></div>
+    <div class="card p-4 space-y-3"><p class="sec !mt-0">TAMPILAN DASHBOARD</p>${palRow('d',D.c1||'#4f46e5',D.c2||'#7c3aed')}</div>
+    <div class="card p-4 space-y-3"><p class="sec !mt-0">TAMPILAN TOKO PUBLIK</p>${palRow('s',S.c1||'#4f46e5',S.c2||'#7c3aed')}
+      <div class="grid grid-cols-2 gap-2">
+        ${selF('decor','Dekorasi latar',[['blobs','Gelembung'],['waves','Gelombang'],['dots','Titik-titik'],['grid','Kotak-kotak'],['stripes','Garis miring'],['none','Polos']],S.decor)}
+        ${selF('cardstyle','Gaya kartu',[['soft','Lembut'],['outline','Garis'],['sharp','Tegas']],S.card)}
+        ${selF('btnshape','Bentuk tombol',[['round','Membulat'],['pill','Kapsul'],['square','Kotak']],S.btn)}
+        ${selF('layout','Tata letak produk',[['grid','Grid 2 kolom'],['list','Daftar']],S.layout)}</div></div>
+    <button class="btn w-full" type="submit">Simpan pengaturan</button>
+  </form>
+  <button id="lo" class="btn btn-danger w-full mt-3">Keluar</button>`;
+}
+function bindSettings(C){
+  const f=$('#pf');if(!f)return;const {P,pm,uid}=C,E=f.elements;
+  $$('[data-pal]',f).forEach(b=>b.onclick=()=>{const w=b.dataset.pal;E[w+'1'].value=b.dataset.c1;E[w+'2'].value=b.dataset.c2;if(w==='d')applyTheme(b.dataset.c1,b.dataset.c2)});
+  E.d1.oninput=E.d2.oninput=()=>applyTheme(E.d1.value,E.d2.value);
+  E.username.oninput=()=>{$('#slugprev').textContent=baseUrl()+'#/store/'+E.username.value.trim().toLowerCase()};
+  f.onsubmit=e=>{e.preventDefault();withLoading($('button[type=submit]',f),async()=>{
+    const un=E.username.value.trim().toLowerCase();
+    if(!/^[a-z0-9_-]{3,30}$/.test(un))throw new Error('Link toko: 3-30 karakter, hanya huruf kecil, angka, - dan _.');
+    const lines=t=>t.value.split('\n').map(l=>l.split('|').map(s=>s.trim())).filter(a=>a[0]&&a[1]);
+    const up=async(n,fo)=>picked(f,n)?await upload(picked(f,n),fo):E[n+'_url'].value.trim();
+    const [avatar_url,banner_url,favicon_url,thumbnail_url,qris]=await Promise.all([up('avatar','avatar'),up('banner','banner'),up('favicon','favicon'),up('thumb','thumb'),picked(f,'qris')?upload(picked(f,'qris'),'qris'):Promise.resolve(pm.qris||'')]);
+    const payment_methods={qris:qris||'',banks:lines(E.banks).map(a=>({bank:a[0],no:a[1],name:a[2]||''})),ewallets:lines(E.ews).map(a=>({name:a[0],no:a[1]})),other:E.other.value.trim()};
+    const theme={dash:{c1:E.d1.value,c2:E.d2.value},store:{c1:E.s1.value,c2:E.s2.value,decor:E.decor.value,card:E.cardstyle.value,btn:E.btnshape.value,layout:E.layout.value}};
+    const {error}=await sb.from('profiles').update({username:un,store_name:E.store_name.value.trim(),bio:E.bio.value,whatsapp_number:waNum(E.wa.value),avatar_url,banner_url,favicon_url,thumbnail_url,payment_methods,theme}).eq('id',uid);
+    if(error)throw new Error(error.code==='23505'?'Link toko sudah dipakai, pilih yang lain.':error.message);
+    toast('Pengaturan disimpan');viewDash()})};
+}
+
+/* ---- Toko publik ---- */
 async function viewStore(username,ref,pid){
   loadingView();
   const {data:p,error}=await sb.from('profiles').select('*').eq('username',username.toLowerCase()).maybeSingle();
-  if(error||!p){app.innerHTML=`<div class="min-h-screen grid place-items-center p-6 text-center"><div><p class="text-5xl">🔍</p><p class="font-extrabold text-lg mt-3">Toko tidak ditemukan</p><p class="text-sm text-slate-500 mt-1">Periksa kembali link yang Anda buka.</p><a href="#/" class="btn mt-4">Ke beranda</a></div></div>`;return}
+  if(error||!p){resetTheme();app.innerHTML=`<div class="min-h-screen grid place-items-center p-6 text-center"><div><p class="text-5xl">🔍</p><p class="font-extrabold text-lg mt-3">Toko tidak ditemukan</p><p class="text-sm text-slate-500 mt-1">Periksa kembali link yang Anda buka.</p><a href="#/" class="btn mt-4">Ke beranda</a></div></div>`;return}
+  const T=(p.theme&&p.theme.store)||{},st=document.documentElement.style;
+  applyTheme(T.c1,T.c2);
+  st.setProperty('--br',{pill:'999px',square:'.3rem'}[T.btn]||'.75rem');
+  st.setProperty('--cr',T.card==='sharp'?'.4rem':T.card==='outline'?'1rem':'1.25rem');
+  document.body.style.background='color-mix(in srgb,var(--c1) 6%,#fff)';
+  setMeta(p.store_name+' - TokoKilat',p.bio,p.thumbnail_url||p.banner_url||p.avatar_url,p.favicon_url||p.avatar_url);
   const {data:prods=[]}=await sb.from('products').select('*').eq('user_id',p.id).order('created_at',{ascending:false});
-  document.title=p.store_name+' - Toko AQSHA';
-  const cats=['Semua',...new Set(prods.map(x=>x.category))];
-  const ban=safeUrl(p.banner_url)?`url('${esc(p.banner_url)}') center/cover`:'linear-gradient(135deg,#4f46e5,#8b5cf6 60%,#c084fc)';
-  const render=cat=>{$('#grid').innerHTML=prods.filter(x=>cat==='Semua'||x.category===cat).map(x=>`
-    <div class="card overflow-hidden flex flex-col">
-      ${safeUrl(x.image_url)?`<img src="${esc(x.image_url)}" class="w-full h-44 object-cover bg-indigo-50" alt="${esc(x.title)}" onerror="this.remove()">`:`<div class="h-24" style="background:linear-gradient(135deg,#e0e7ff,#ede9fe)"></div>`}
-      <div class="p-4 flex flex-col flex-1"><span class="text-[11px] font-semibold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full w-fit">${esc(x.category)}</span>
+  const cs=T.card==='outline'?'box-shadow:none;border:1.5px solid color-mix(in srgb,var(--c1) 40%,#fff)':T.card==='sharp'?'box-shadow:4px 4px 0 var(--c1);border:2px solid var(--c1)':'';
+  const cats=['Semua',...new Set(prods.map(x=>x.category))],list=T.layout==='list';
+  const hasBan=safeUrl(p.banner_url),ban=hasBan?`url('${esc(p.banner_url)}') center/cover`:'var(--g)';
+  const card=x=>{const im=safeUrl(x.image_url);
+    const info=`<div class="p-4 flex flex-col flex-1 min-w-0"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full text-white w-fit" style="background:var(--g)">${esc(x.category)}</span>
       <h3 class="font-bold mt-2">${esc(x.title)}</h3>${x.description?`<p class="text-sm text-slate-500 mt-1 line-clamp-3">${esc(x.description)}</p>`:''}
-      <div class="flex items-center justify-between mt-auto pt-3"><p class="text-lg font-extrabold text-indigo-600">${rp(x.price)}</p><button class="btn" data-buy="${x.id}">Beli sekarang</button></div></div></div>`).join('')||'<div class="card p-8 text-center text-slate-500 text-sm sm:col-span-2">Belum ada produk di kategori ini.</div>';
+      <div class="flex items-center justify-between gap-2 mt-auto pt-3"><p class="text-lg font-extrabold text-indigo-600">${rp(x.price)}</p><button class="btn" data-buy="${x.id}">Beli sekarang</button></div></div>`;
+    const pic=(c)=>im?`<img src="${esc(x.image_url)}" class="${c} object-cover bg-indigo-50" alt="${esc(x.title)}" onerror="this.remove()">`:`<div class="${c.replace(/h-\d+/,'')} ${list?'w-28 sm:w-40':'h-24 w-full'}" style="background:var(--g);opacity:.9"></div>`;
+    return list?`<div class="card overflow-hidden flex transition hover:-translate-y-0.5" style="${cs}">${pic('w-28 sm:w-40 shrink-0 self-stretch')}${info}</div>`
+      :`<div class="card overflow-hidden flex flex-col transition hover:-translate-y-1" style="${cs}">${pic('w-full h-44')}${info}</div>`};
+  const pill=(b,on)=>{b.style.background=on?'var(--g)':'#fff';b.style.color=on?'#fff':'#475569'};
+  const render=cat=>{$('#grid').innerHTML=prods.filter(x=>cat==='Semua'||x.category===cat).map(card).join('')||'<div class="card p-8 text-center text-slate-500 text-sm sm:col-span-2">Belum ada produk di kategori ini.</div>';
     $$('[data-buy]').forEach(b=>b.onclick=()=>{track(p.id,'click',b.dataset.buy);checkout(prods.find(x=>x.id===b.dataset.buy),p,ref)})};
-  app.innerHTML=`<div class="max-w-2xl mx-auto pb-12">
-    <div class="h-40 sm:h-52 sm:rounded-b-3xl" style="background:${ban}"></div>
-    <div class="px-4 -mt-12 text-center">
-      <div class="w-24 h-24 mx-auto rounded-full border-4 border-white bg-indigo-100 overflow-hidden grid place-items-center text-3xl font-extrabold text-indigo-600 shadow-lg">${p.avatar_url?`<img src="${esc(safeUrl(p.avatar_url))}" class="w-full h-full object-cover" alt="">`:esc((p.store_name||'T')[0])}</div>
+  app.innerHTML=`<div style="position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden">${decorHTML(T.decor||'blobs')}</div>
+  <div class="relative z-10 max-w-2xl mx-auto pb-12">
+    <div class="relative h-44 sm:h-56 overflow-hidden sm:rounded-b-[2rem]" style="background:${ban}">
+      ${hasBan?'':`<svg class="absolute inset-0 w-full h-full" viewBox="0 0 400 200" preserveAspectRatio="none"><circle cx="340" cy="30" r="90" fill="none" stroke="#fff" stroke-opacity=".25" stroke-width="2"/><circle cx="340" cy="30" r="55" fill="#fff" fill-opacity=".1"/><circle cx="40" cy="170" r="70" fill="#fff" fill-opacity=".1"/><path d="M0 140 C80 100 150 180 230 135 S350 110 400 130 V200 H0Z" fill="#fff" fill-opacity=".12"/></svg>`}</div>
+    <div class="px-4 -mt-14 text-center relative">
+      <div class="w-28 h-28 mx-auto rounded-full p-1 shadow-xl" style="background:var(--g)"><div class="w-full h-full rounded-full bg-white overflow-hidden grid place-items-center text-4xl font-extrabold text-indigo-600">${p.avatar_url?`<img src="${esc(safeUrl(p.avatar_url))}" class="w-full h-full object-cover" alt="">`:esc((p.store_name||'T')[0])}</div></div>
       <h1 class="mt-3 text-2xl font-extrabold">${esc(p.store_name)}</h1><p class="text-xs text-slate-400">@${esc(p.username)}</p>
       ${p.bio?`<p class="text-sm text-slate-600 mt-2 max-w-sm mx-auto">${esc(p.bio)}</p>`:''}
-      ${p.whatsapp_number?`<a href="https://wa.me/${waNum(p.whatsapp_number)}" target="_blank" rel="noopener" class="btn btn-ghost mt-3 !py-2">Chat penjual</a>`:''}
+      <div class="flex justify-center gap-2 mt-4">${p.whatsapp_number?`<a href="https://wa.me/${waNum(p.whatsapp_number)}" target="_blank" rel="noopener" class="btn !py-2">Chat penjual</a>`:''}<button id="sh" class="btn btn-ghost !py-2">Bagikan</button></div>
     </div>
-    ${cats.length>2?`<div id="cats" class="px-4 mt-6 flex gap-2 overflow-x-auto">${cats.map((c,i)=>`<button data-c="${esc(c)}" class="shrink-0 px-4 py-2 rounded-full text-sm font-semibold ${i?'bg-white text-slate-600':'bg-indigo-600 text-white'}">${esc(c)}</button>`).join('')}</div>`:''}
-    <div id="grid" class="px-4 mt-4 grid gap-4 sm:grid-cols-2"></div>
-    <p class="text-center text-xs text-slate-400 mt-10">Dibuat dengan Toko AQSHA</p></div>`;
+    ${cats.length>2?`<div id="cats" class="px-4 mt-6 flex gap-2 overflow-x-auto pb-1">${cats.map(c=>`<button data-c="${esc(c)}" class="shrink-0 px-4 py-2 rounded-full text-sm font-semibold shadow-sm">${esc(c)}</button>`).join('')}</div>`:''}
+    <div id="grid" class="px-4 mt-4 grid gap-4 ${list?'':'sm:grid-cols-2'}"></div>
+    <p class="text-center text-xs text-slate-400 mt-10">Dibuat dengan TokoKilat</p></div>`;
   render('Semua');track(p.id,'view');if(pid){const tp=prods.find(x=>x.id===pid);if(tp)checkout(tp,p,ref)}
-  $$('#cats [data-c]').forEach(b=>b.onclick=()=>{$$('#cats [data-c]').forEach(x=>x.className='shrink-0 px-4 py-2 rounded-full text-sm font-semibold bg-white text-slate-600');b.className='shrink-0 px-4 py-2 rounded-full text-sm font-semibold bg-indigo-600 text-white';render(b.dataset.c)});
+  $('#sh').onclick=()=>copy(baseUrl()+'#/store/'+p.username);
+  $$('#cats [data-c]').forEach((b,i)=>{pill(b,i===0);b.onclick=()=>{$$('#cats [data-c]').forEach(x=>pill(x,false));pill(b,true);render(b.dataset.c)}});
 }
 
 /* ---- Checkout + metode pembayaran ---- */
