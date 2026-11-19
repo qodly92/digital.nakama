@@ -51,12 +51,15 @@ body{background:radial-gradient(700px 320px at 95% -5%,color-mix(in srgb,var(--c
 <script>
 /* ============ KONFIGURASI ============ */
 const CFG=window.TOKO_CONFIG||{};
-const SUPABASE_URL=CFG.SUPABASE_URL||'ISI_SUPABASE_URL_ANDA';
+const _ok=v=>!!v&&!/XXXX|ISI_/i.test(v);
+const SUPABASE_URL=_ok(CFG.SUPABASE_URL)?CFG.SUPABASE_URL:'https://obvrduoscrdklfofxgkk.supabase.co';
 const MAIN_STORE=String(CFG.MAIN_STORE||'').toLowerCase(),ALLOW_REGISTER=CFG.ALLOW_REGISTER!==false;
-const SUPABASE_ANON_KEY=CFG.SUPABASE_ANON_KEY||'ISI_SUPABASE_ANON_KEY_ANDA';
+const SUPABASE_ANON_KEY=_ok(CFG.SUPABASE_ANON_KEY)?CFG.SUPABASE_ANON_KEY:'sb_publishable_g6s3vnbsS3HD0TO8sOYXlA_qS_W6Vm-';
 /* ====================================== */
-if(!/^https:\/\/.+\.supabase\.co/.test(SUPABASE_URL)||SUPABASE_ANON_KEY.startsWith('ISI_')){
-  document.body.innerHTML='<div style="padding:2rem;font-family:sans-serif;max-width:32rem;margin:auto"><h2>Konfigurasi belum diisi</h2><p>Isi SUPABASE_URL dan SUPABASE_ANON_KEY di index.html, lalu muat ulang.</p></div>';
+const _bad=!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(SUPABASE_URL.replace(/\/+$/,''))||/XXXX/i.test(SUPABASE_URL)||SUPABASE_ANON_KEY.startsWith('ISI_')||SUPABASE_ANON_KEY.length<30;
+if(_bad){
+  const why=!window.TOKO_CONFIG?'File <b>config.js</b> tidak ditemukan. Upload <b>config.js</b> ke folder yang sama dengan index.html (nama file harus persis config.js).':'File <b>config.js</b> terbaca, tetapi <b>SUPABASE_URL</b> atau <b>SUPABASE_ANON_KEY</b> belum diisi dengan nilai asli dari project Supabase Anda.';
+  document.body.innerHTML='<div style="padding:2rem 1.25rem;font-family:system-ui,sans-serif;max-width:34rem;margin:auto;line-height:1.6"><h2>Konfigurasi belum diisi</h2><p>'+why+'</p><ol><li>Buka Supabase: Project Settings, lalu API.</li><li>Salin <b>Project URL</b> (contoh: https://abcdxyz.supabase.co) dan <b>anon public key</b> (diawali eyJ...).</li><li>Isi keduanya di <b>config.js</b>, simpan, lalu muat ulang halaman (Ctrl+F5).</li></ol></div>';
   throw new Error('Supabase belum dikonfigurasi');
 }
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
