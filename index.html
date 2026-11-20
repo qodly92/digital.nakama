@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AQSHA - Instant Store</title>
 <link rel="icon" id="fav" href="data:,">
+<!--OG-START-->
 <meta property="og:title" content=""><meta property="og:description" content=""><meta property="og:image" content=""><meta name="twitter:card" content="summary_large_image">
+<!--OG-END-->
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -71,7 +73,7 @@ const waNum=n=>{let d=String(n||'').replace(/\D/g,'');return d.startsWith('0')?'
 const safeUrl=u=>/^https?:\/\//i.test(u||'')?u:'';
 const baseUrl=()=>location.origin+location.pathname;
 const copy=t=>navigator.clipboard.writeText(t).then(()=>toast('Disalin'),()=>toast('Gagal menyalin',false));
-let session=null,dashTab='home',invEdit=null;
+let session=null,dashTab='home',invEdit=null,OID=null,ROLE=null;
 
 function toast(m,ok=true){const t=$('#toast');t.textContent=m;t.className='fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg '+(ok?'bg-emerald-600':'bg-red-600');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.add('hidden'),3800)}
 async function withLoading(btn,fn){const o=btn.innerHTML;btn.disabled=true;btn.innerHTML='<span class="spin"></span> Memproses...';try{await fn()}catch(e){console.error(e);toast(e.message||'Terjadi kesalahan. Coba lagi.',false)}finally{btn.disabled=false;btn.innerHTML=o}}
@@ -104,12 +106,13 @@ async function route(){
   if(path.startsWith('store/'))return viewStore(decodeURIComponent(path.split('/')[1]||''),sp.get('ref'),sp.get('p'));
   if(path==='login')return session?go('dashboard'):viewAuth('login');
   if(path==='register'){if(session)return go('dashboard');if(!ALLOW_REGISTER&&await mainStore())return go('login');return viewAuth('register')}
+  if(path==='staff')return session?go('dashboard'):viewStaffSignup(sp.get('code')||'');
   if(path==='dashboard')return session?viewDash():go('login');
   const un=await mainStore();if(!un)return viewAuth('register');
   return viewStore(un,sp.get('ref'),sp.get('p'));
 }
 addEventListener('hashchange',route);
-sb.auth.onAuthStateChange((_e,s)=>{session=s});
+sb.auth.onAuthStateChange((ev,s)=>{session=s;if(ev==='PASSWORD_RECOVERY')setTimeout(passwordModal,300)});
 route();
 
 /* ============ AUTH ============ */
@@ -132,6 +135,7 @@ function viewAuth(mode='login'){resetTheme();
   </div></div>`;
   $('#sw').onclick=()=>go(reg?'login':'register');if(!ALLOW_REGISTER&&!reg)$('#sw').parentElement.style.display='none';
   $('#sw').parentElement.insertAdjacentHTML('afterend','<a href="#/" class="block text-center text-xs text-slate-400 mt-6">← Kembali ke toko</a>');
+  if(!reg){$('#af').insertAdjacentHTML('afterend','<p class="text-center mt-3"><button id="fp" class="text-xs text-slate-400 underline">Lupa password?</button></p>');$('#fp').onclick=forgotModal}
   $('#af').onsubmit=e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));
     withLoading($('#af button[type=submit]'),async()=>{
       if(reg){
@@ -151,17 +155,22 @@ function viewAuth(mode='login'){resetTheme();
 }
 
 /* ============ DASHBOARD ============ */
-const NAV=[['home','🏠','Beranda'],['products','📦','Produk'],['orders','🧾','Pesanan'],['affiliate','🤝','Afiliasi'],['invoice','📄','Invoice'],['settings','⚙️','Setelan']];
+const NAV=[['home','🏠','Beranda'],['products','📦','Produk'],['orders','🧾','Pesanan'],['affiliate','🤝','Afiliasi'],['invoice','📄','Invoice'],['staff','👥','Staf'],['settings','⚙️','Setelan']];
 const stCls=s=>s==='Lunas'?'bg-emerald-50 text-emerald-700':s==='Dibatalkan'?'bg-slate-100 text-slate-500':'bg-amber-50 text-amber-700';
 
 async function viewDash(){
   loadingView();
   const uid=session.user.id;
+  const stf=await resolveRole();
+  if(typeof stf==='string'){app.innerHTML=`<div class="min-h-screen grid place-items-center p-6 text-center"><div class="max-w-sm"><p class="text-4xl">🔒</p><p class="font-bold mt-2">${stf==='inactive'?'Akun staf Anda dinonaktifkan':'Kode undangan tidak valid, sudah dipakai, atau kedaluwarsa'}</p><p class="text-sm text-slate-500 mt-1">Hubungi pemilik toko.</p><button class="btn btn-danger mt-4" id="lo0">Keluar</button></div></div>`;$('#lo0').onclick=async()=>{await sb.auth.signOut();session=null;go('')};return}
+  const oid=stf?stf.owner_id:uid;OID=oid;ROLE=stf;
+  const can=k=>!stf||!!(stf.permissions||{})[k];
+  {const ok={home:1,products:can('products'),orders:can('orders'),invoice:can('invoices'),affiliate:can('affiliate'),settings:!stf,staff:!stf};if(!ok[dashTab])dashTab='home'}
   const [p,pr,o,af,st,iv,ev,dr]=await Promise.all([
-    sb.from('profiles').select('*').eq('id',uid).single(),
-    sb.from('products').select('*').eq('user_id',uid).order('sort_order',{ascending:true,nullsFirst:false}).order('created_at',{ascending:false}),
+    sb.from('profiles').select('*').eq('id',oid).single(),
+    sb.from('products').select('*').eq('user_id',oid).order('sort_order',{ascending:true,nullsFirst:false}).order('created_at',{ascending:false}),
     sb.from('orders').select('*, products(title, price)').order('created_at',{ascending:false}),
-    sb.from('affiliates').select('id,code,created_at,profiles!affiliates_user_id_fkey(username,store_name)').eq('seller_id',uid),
+    sb.from('affiliates').select('id,code,created_at,profiles!affiliates_user_id_fkey(username,store_name)').eq('seller_id',oid),
     sb.rpc('affiliate_stats'),
     sb.from('invoices').select('*').order('created_at',{ascending:false}),
     sb.from('store_events').select('type,created_at').gte('created_at',new Date(Date.now()-30*864e5).toISOString()).order('created_at',{ascending:false}).limit(5000),
@@ -171,7 +180,9 @@ async function viewDash(){
   if(err){app.innerHTML=`<div class="min-h-screen grid place-items-center p-6 text-center"><div class="max-w-sm"><p class="font-bold">Gagal memuat data</p><p class="text-sm text-slate-500 mt-1">${esc(err.message)}</p><p class="text-xs text-slate-400 mt-2">Pastikan semua file schema (schema.sql sampai schema_v5.sql) sudah dijalankan.</p><button class="btn mt-4" onclick="viewDash()">Coba lagi</button> <button class="btn btn-danger mt-4" id="lo0">Keluar</button></div></div>`;$('#lo0').onclick=async()=>{await sb.auth.signOut();go('')};return}
   const P=p.data,prods=pr.data,orders=o.data,mine=af.data,myAff=st.data||[];const invoices=iv.data,dir=dr.data||[];EV=ev.data||[];CUR_PRODS=prods;
   applyTheme(P.theme?.dash?.c1,P.theme?.dash?.c2);{const rs=document.documentElement.style;rs.removeProperty('--br');rs.removeProperty('--cr')}document.body.style.background='';setMeta('Dashboard - '+P.store_name,'','',P.favicon_url);
-  const pm=P.payment_methods||{};const CTX={P,prods,orders,mine,myAff,invoices,dir,uid,pm};
+  const pm=P.payment_methods||{};let staffList=[],invites=[],staffErr=null;
+  if(!stf){const [a,b]=await Promise.all([sb.from('staff').select('*').order('created_at'),sb.from('staff_invites').select('*').order('created_at',{ascending:false})]);staffErr=(a.error||b.error)?(a.error||b.error).message:null;staffList=a.data||[];invites=b.data||[]}
+  const CTX={P,prods,orders,mine,myAff,invoices,dir,uid,pm,oid,stf,can,isStaff:!!stf,staffList,invites,staffErr};
   const paid=orders.filter(x=>x.status==='Lunas'),pending=orders.filter(x=>x.status==='Menunggu Pembayaran');
   const revenue=paid.filter(x=>!x.currency||x.currency==='IDR').reduce((s,x)=>s+Number(x.amount??x.products?.price??0)-Number(x.commission||0),0);
   const link=`${baseUrl()}#/store/${P.username}`;
@@ -212,21 +223,23 @@ async function viewDash(){
   if(dashTab==='affiliate')body=affiliateBody(CTX);
   if(dashTab==='invoice')body=invoiceBody(CTX);
   if(dashTab==='settings')body=settingsBody(CTX);
+  if(dashTab==='staff')body=staffBody(CTX);
+  if(stf&&dashTab==='home')body=staffHome(CTX,orderRow);
 
   app.innerHTML=`
   <aside class="hidden md:flex fixed inset-y-0 left-0 w-60 flex-col p-4 text-white overflow-hidden" style="background:linear-gradient(180deg,var(--c1),var(--c2))">
     <div class="absolute -right-12 top-24 w-44 h-44 rounded-full bg-white/10 pointer-events-none"></div><div class="absolute -left-10 bottom-32 w-36 h-36 rounded-full bg-white/10 pointer-events-none"></div><svg class="absolute bottom-0 left-0 w-full pointer-events-none" viewBox="0 0 240 90" fill="#fff" fill-opacity=".08"><path d="M0 40 C60 10 120 70 240 30 V90 H0Z"/></svg>
     <div class="flex items-center gap-3 px-2 py-3"><div class="w-10 h-10 rounded-xl bg-white/20 grid place-items-center font-extrabold">T</div><p class="font-extrabold text-lg">AQSHA</p></div>
-    <nav class="nav mt-4 space-y-1">${NAV.map(([k,i,l])=>`<a data-tab="${k}" class="${dashTab===k?'on':''}"><span>${i}</span>${l}</a>`).join('')}</nav>
+    <nav class="nav mt-4 space-y-1">${navItems().map(([k,i,l])=>`<a data-tab="${k}" class="${dashTab===k?'on':''}"><span>${i}</span>${l}</a>`).join('')}</nav>
     <div class="mt-auto space-y-2 relative"><a href="#/store/${esc(P.username)}" class="btn w-full !bg-white !text-indigo-700">Lihat toko publik</a><button data-logout class="btn w-full !bg-white/15 hover:!bg-white/25">Keluar</button></div>
   </aside>
   <div class="md:pl-60"><main class="${dashTab==='invoice'&&invEdit?'max-w-6xl':'max-w-2xl'} mx-auto px-4 pt-5 pb-28 md:pb-10">
     <header class="flex items-center gap-3 mb-5"><div class="w-11 h-11 rounded-full bg-indigo-100 overflow-hidden grid place-items-center font-bold text-indigo-600">${avatar}</div>
-    <div class="flex-1"><p class="text-xs text-slate-500">Halo,</p><p class="font-extrabold leading-tight">${esc(P.store_name)}</p></div>
+    <div class="flex-1"><p class="text-xs text-slate-500">Halo${stf?', '+esc(stf.name)+' (staf)':''},</p><p class="font-extrabold leading-tight">${esc(P.store_name)}</p></div>
     <a href="#/store/${esc(P.username)}" class="md:hidden text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-2 rounded-xl">Toko saya</a><button data-logout class="text-xs font-semibold text-red-500 bg-red-50 px-3 py-2 rounded-xl">Keluar</button></header>
     ${body}</main></div>
-  <nav class="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-100 grid grid-cols-6">
-    ${NAV.map(([k,i,l])=>`<a data-tab="${k}" class="py-2.5 text-center text-[10px] font-semibold cursor-pointer ${dashTab===k?'text-indigo-600':'text-slate-400'}"><span class="block text-lg leading-none">${i}</span>${l}</a>`).join('')}</nav>`;
+  <nav class="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-100 grid" style="grid-template-columns:repeat(${navItems().length},minmax(0,1fr))">
+    ${navItems().map(([k,i,l])=>`<a data-tab="${k}" class="py-2.5 text-center text-[10px] font-semibold cursor-pointer ${dashTab===k?'text-indigo-600':'text-slate-400'}"><span class="block text-lg leading-none">${i}</span>${l}</a>`).join('')}</nav>`;
 
   $$('[data-tab]').forEach(a=>a.onclick=()=>{dashTab=a.dataset.tab;if(dashTab!=='invoice')invEdit=null;viewDash()});
   $$('[data-copy]').forEach(b=>b.onclick=()=>copy(b.dataset.copy));
@@ -337,7 +350,7 @@ function productForm(x={}){
         stock:E.limitstock.checked?Math.max(0,parseInt(E.stock.value)||0):null,max_qty:E.limitqty.checked?Math.max(1,parseInt(E.maxqty.value)||1):null,
         button_label:E.btnlabel.value,addons:adds.filter(a=>String(a.name).trim()).map(a=>({name:String(a.name).trim(),price:Number(a.price)||0})),
         affiliate_enabled:E.aff.checked,affiliate_rate:E.arate.value===''?null:Number(E.arate.value)};
-      const {error}=await(x.id?sb.from('products').update(row).eq('id',x.id):sb.from('products').insert({...row,user_id:session.user.id,sort_order:Math.max(0,...CUR_PRODS.map(p=>p.sort_order||0))+1}));
+      const {error}=await(x.id?sb.from('products').update(row).eq('id',x.id):sb.from('products').insert({...row,user_id:OID,sort_order:Math.max(0,...CUR_PRODS.map(p=>p.sort_order||0))+1}));
       if(error)throw error;closeModal();toast(x.id?'Produk diperbarui':'Produk ditambahkan');viewDash()})};
 }
 
@@ -401,15 +414,15 @@ function bindExtra(C){
   if($('#invnew'))$('#invnew').onclick=()=>{invEdit=newInvoice(C);viewDash()};
   $$('[data-iedit]').forEach(b=>b.onclick=()=>{const r=C.invoices.find(x=>x.id===b.dataset.iedit);invEdit={id:r.id,data:structuredClone(r.data)};viewDash()});
   $$('[data-idup]').forEach(b=>b.onclick=()=>withLoading(b,async()=>{const r=C.invoices.find(x=>x.id===b.dataset.idup),dd=structuredClone(r.data);dd.no=r.number+'-COPY';dd.status='Draft';
-    const {error}=await sb.from('invoices').insert({user_id:C.uid,number:dd.no,client_name:r.client_name,total:r.total,status:'Draft',data:dd});if(error)throw error;toast('Invoice diduplikat');viewDash()}));
+    const {error}=await sb.from('invoices').insert({user_id:C.oid,number:dd.no,client_name:r.client_name,total:r.total,status:'Draft',data:dd});if(error)throw error;toast('Invoice diduplikat');viewDash()}));
   $$('[data-idel]').forEach(b=>b.onclick=()=>{if(!confirm('Hapus invoice ini?'))return;
     withLoading(b,async()=>{const {error}=await sb.from('invoices').delete().eq('id',b.dataset.idel);if(error)throw error;toast('Invoice dihapus');viewDash()})});
   if($('#invf'))bindInvoice();
-  bindProducts(C);
+  bindProducts(C);bindStaff(C);
   $$('[data-logout]').forEach(b=>b.onclick=async()=>{await sb.auth.signOut();session=null;go('')});
 }
 
-function affiliateBody(C){
+function affiliateBody(C){if(C.isStaff)return staffAffiliate(C);
   const {P,prods,orders,mine,myAff,dir,uid}=C;
   const joined=new Set(myAff.map(a=>a.seller_username));
   const chips=ps=>{const m={};ps.forEach(p=>m[p.category]=(m[p.category]||0)+1);return Object.entries(m).map(([k,v])=>`<span class="text-[11px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">${esc(k)} · ${v}</span>`).join(' ')||'<span class="text-xs text-slate-400">Belum ada produk dalam program</span>'};
@@ -452,16 +465,16 @@ function invCalc(d){const sub=d.items.reduce((s,i)=>s+(+i.q||0)*(+i.p||0),0),dis
 
 function newInvoice(C,order){
   const P=C.P,pm=P.payment_methods||{},b=(pm.banks||[])[0]||{},today=new Date().toISOString().slice(0,10),due=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
-  return {id:null,data:{no:'INV-'+today.replace(/-/g,'')+'-'+String(C.invoices.length+1).padStart(3,'0'),date:today,due,status:'Belum Dibayar',color:'#0f6b7a',
+  return {id:null,data:{no:'INV-'+today.replace(/-/g,'')+'-'+String(C.invoices.length+1).padStart(3,'0'),date:today,due,status:'Belum Dibayar',color:'#6aa117',
     brand:{name:P.store_name||'',tag:'',logo:P.avatar_url||'',phone:P.whatsapp_number||'',email:'',web:`${baseUrl()}#/store/${P.username}`,addr:''},
     bill:{name:order?.buyer_name||'',company:'',phone:order?.buyer_whatsapp||'',addr:order?.buyer_email||''},
     items:order?[{d:order.products?.title||'',q:order.quantity||1,p:((order.amount??order.products?.price)||0)/(order.quantity||1)}]:[{d:'',q:1,p:0}],tax:0,discount:0,
-    pay:{info:b.bank?`Bank: ${b.bank}\nNo. Rekening: ${b.no}\nAtas nama: ${b.name||''}`:''},terms:'Pembayaran paling lambat pada tanggal jatuh tempo.',
+    pay:{qris:pm.qris||'',info:b.bank?`Bank: ${b.bank}\nNo. Rekening: ${b.no}\nAtas nama: ${b.name||''}`:''},terms:'Pembayaran paling lambat pada tanggal jatuh tempo.',
     sign:{img:'',stamp:'',name:'',title:''},thanks:'TERIMA KASIH ATAS KEPERCAYAAN ANDA'}};
 }
 
 function invHTML(d){
-  const c=d.color||'#0f6b7a',t=invCalc(d),L=v=>esc(v||''),pl='white-space:pre-line';
+  const c=d.color||'#6aa117',t=invCalc(d),L=v=>esc(v||''),pl='white-space:pre-line';
   const img=(u,s)=>safeUrl(u)?`<img src="${esc(u)}" crossorigin="anonymous" style="${s}" alt="">`:'';
   const th=(a,w)=>`<th style="padding:10px 12px;text-align:${a};width:${w};font-size:11px;letter-spacing:.06em">`;
   const tr=(l,v)=>`<div style="display:flex;justify-content:space-between;padding:6px 12px"><span>${l}</span><span>${v}</span></div>`;
@@ -475,7 +488,7 @@ function invHTML(d){
   <table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:${c};color:#fff">${th('center','60px')}NO</th>${th('left','auto')}DESKRIPSI PRODUK</th>${th('right','120px')}HARGA</th>${th('center','60px')}QTY</th>${th('right','130px')}TOTAL</th></tr></thead>
   <tbody>${d.items.map((it,i)=>`<tr style="background:${i%2?'#fff':c+'14'}"><td style="padding:12px;text-align:center">${String(i+1).padStart(2,'0')}</td><td style="padding:12px">${L(it.d)}</td><td style="padding:12px;text-align:right">${rp(it.p)}</td><td style="padding:12px;text-align:center">${+it.q||0}</td><td style="padding:12px;text-align:right;font-weight:700">${rp((+it.q||0)*(+it.p||0))}</td></tr>`).join('')}</tbody></table>
   <div style="display:flex;justify-content:space-between;gap:28px;padding:24px 44px;font-size:12px;line-height:1.7">
-    <div style="flex:1"><b style="color:${c}">INFO PEMBAYARAN</b><div style="${pl}">${L(d.pay.info)}</div><b style="color:${c};display:block;margin-top:14px">SYARAT &amp; KETENTUAN</b><div style="${pl}">${L(d.terms)}</div></div>
+    <div style="flex:1"><b style="color:${c}">INFO PEMBAYARAN</b><div style="${pl}">${L(d.pay.info)}</div>${img(d.pay.qris,'height:112px;margin-top:10px;object-fit:contain;display:block')}<b style="color:${c};display:block;margin-top:14px">SYARAT &amp; KETENTUAN</b><div style="${pl}">${L(d.terms)}</div></div>
     <div style="width:270px"><div style="border:1px solid ${c}33;border-bottom:0;border-radius:8px 8px 0 0;padding:4px 0">${tr('Sub Total',rp(t.sub))}${t.disc?tr('Diskon','-'+rp(t.disc)):''}${tr('Pajak ('+(+d.tax||0)+'%)',rp(t.tax))}</div>
       <div style="background:${c};color:#fff;display:flex;justify-content:space-between;padding:12px;font-weight:800;font-size:14px;border-radius:0 0 8px 8px"><span>Grand Total</span><span>${rp(t.total)}</span></div>
       <div style="position:relative;height:120px;margin-top:20px">${img(d.sign.stamp,'position:absolute;left:8px;top:0;height:92px;opacity:.85;object-fit:contain')}${img(d.sign.img,'position:absolute;left:50%;transform:translateX(-50%);top:8px;height:70px;object-fit:contain')}
@@ -525,12 +538,12 @@ function invEditor(){
   <form id="invf" class="card p-4 space-y-3 lg:max-h-[80vh] lg:overflow-y-auto" onsubmit="return false">
     <p class="sec !mt-0">INVOICE</p>${FI('no','Nomor invoice',d.no)}<div class="grid grid-cols-2 gap-2">${FI('date','Tanggal',d.date,'date')}${FI('due','Jatuh tempo',d.due,'date')}</div>
     <div>${FL('Status')}<select class="inp" data-k="status">${['Draft','Belum Dibayar','Lunas'].map(s=>`<option ${d.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
-    ${FI('color','Warna tema',d.color,'color')}
+    ${colorBlock(d.color)}
     <p class="sec">MEREK / PENJUAL</p>${FG('brand.logo','Logo (unggah gambar)')}${FI('brand.name','Nama merek',d.brand.name)}${FI('brand.tag','Tagline',d.brand.tag)}${FI('brand.phone','Telepon',d.brand.phone)}${FI('brand.email','Email',d.brand.email)}${FI('brand.web','Website',d.brand.web)}${FT('brand.addr','Alamat',d.brand.addr,2)}
     <p class="sec">DITAGIH KEPADA</p>${FI('bill.name','Nama',d.bill.name)}${FI('bill.company','Perusahaan',d.bill.company)}${FI('bill.phone','Telepon',d.bill.phone)}${FT('bill.addr','Alamat / email',d.bill.addr,2)}
     <p class="sec">ITEM</p><div id="invitems" class="space-y-2">${itemsHTML(d.items)}</div><button type="button" class="btn btn-ghost w-full !py-2" data-add>+ Tambah item</button>
     <div class="grid grid-cols-2 gap-2">${FI('tax','Pajak (%)',d.tax,'number')}${FI('discount','Diskon (Rp)',d.discount,'number')}</div>
-    <p class="sec">PEMBAYARAN &amp; SYARAT</p>${FT('pay.info','Info pembayaran',d.pay.info,3)}${FT('terms','Syarat & ketentuan',d.terms,3)}
+    <p class="sec">PEMBAYARAN &amp; SYARAT</p>${FT('pay.info','Info pembayaran',d.pay.info,3)}${FG('pay.qris','Gambar QRIS (unggah)')}${FT('terms','Syarat & ketentuan',d.terms,3)}
     <p class="sec">TANDA TANGAN</p>${FG('sign.img','Tanda tangan / paraf (PNG transparan disarankan)')}${FG('sign.stamp','Stempel')}${FI('sign.name','Nama penanda tangan',d.sign.name)}${FI('sign.title','Jabatan',d.sign.title)}${FI('thanks','Teks penutup',d.thanks)}
   </form>
   <div><div id="invwrap" class="overflow-hidden rounded-xl shadow-lg bg-white"><div id="invprev" style="width:794px;transform-origin:top left"></div></div></div></div>`;
@@ -539,23 +552,134 @@ function bindInvoice(){
   const f=$('#invf'),d=invEdit.data;
   const set=(k,v)=>{const ks=k.split('.');let o=d;ks.slice(0,-1).forEach(x=>o=o[x]);o[ks[ks.length-1]]=v};
   const upd=()=>{$('#invprev').innerHTML=invHTML(d);fitInv()};
-  f.addEventListener('input',e=>{const t=e.target;if(t.dataset.k){set(t.dataset.k,t.value);upd()}else if(t.dataset.i!==undefined){d.items[t.dataset.i][t.dataset.f]=t.value;upd()}});
+  f.addEventListener('input',e=>{const t=e.target,rg=k=>f.querySelector(`[data-rgb="${k}"]`);
+    if(t.dataset.rgb){d.color=RGBhex(rg('r').value,rg('g').value,rg('b').value);f.querySelector('[data-k="color"]').value=d.color;upd()}
+    else if(t.dataset.k){set(t.dataset.k,t.value);if(t.dataset.k==='color'){const c=hexRGB(d.color);['r','g','b'].forEach((k,i)=>rg(k).value=c[i])}upd()}
+    else if(t.dataset.i!==undefined){d.items[t.dataset.i][t.dataset.f]=t.value;upd()}});
   f.addEventListener('change',async e=>{const t=e.target,k=t.dataset.imgk;if(!k||!t.files[0])return;
     try{toast('Mengunggah gambar...');set(k,await upload(t.files[0],'invoice'));upd();toast('Gambar ditambahkan')}catch(er){toast(er.message,false)}});
   f.addEventListener('click',e=>{const t=e.target;
     if(t.dataset.imgclear){set(t.dataset.imgclear,'');const i=$(`[data-imgk="${t.dataset.imgclear}"]`);if(i)i.value='';upd()}
+    if('defcolor' in t.dataset){d.color='#6aa117';f.querySelector('[data-k="color"]').value=d.color;['r','g','b'].forEach((k,i)=>f.querySelector(`[data-rgb="${k}"]`).value=[106,161,23][i]);upd()}
     if('add' in t.dataset){d.items.push({d:'',q:1,p:0});$('#invitems').innerHTML=itemsHTML(d.items);upd()}
     if(t.dataset.rm!==undefined&&d.items.length>1){d.items.splice(+t.dataset.rm,1);$('#invitems').innerHTML=itemsHTML(d.items);upd()}});
   upd();
   $('#invback').onclick=()=>{invEdit=null;viewDash()};
   $('#invsave').onclick=e=>withLoading(e.currentTarget,async()=>{
-    const row={user_id:session.user.id,number:d.no,client_name:d.bill.name,total:invCalc(d).total,status:d.status,data:d,updated_at:new Date().toISOString()};
+    const row={user_id:OID,number:d.no,client_name:d.bill.name,total:invCalc(d).total,status:d.status,data:d,updated_at:new Date().toISOString()};
     if(invEdit.id){const {error}=await sb.from('invoices').update(row).eq('id',invEdit.id);if(error)throw error}
     else{const {data,error}=await sb.from('invoices').insert(row).select('id').single();if(error)throw error;invEdit.id=data.id}
     toast('Invoice disimpan')});
   $('#invpdf').onclick=e=>withLoading(e.currentTarget,()=>invExport(d,'pdf'));
   $('#invjpg').onclick=e=>withLoading(e.currentTarget,()=>invExport(d,'jpg'));
   $('#invprint').onclick=()=>invPrint(d);
+}
+
+/* ===== v6: staf, warna invoice, share thumbnail, reset password ===== */
+const hexRGB=h=>{h=String(h||'#6aa117').replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');return [0,2,4].map(i=>parseInt(h.slice(i,i+2),16)||0)};
+const RGBhex=(r,g,b)=>'#'+[r,g,b].map(v=>Math.max(0,Math.min(255,Math.round(+v||0))).toString(16).padStart(2,'0')).join('');
+function colorBlock(hex){const [r,g,b]=hexRGB(hex);
+  return `<div>${FL('Warna tema (custom)')}<div class="flex items-center gap-2"><input class="inp !p-1 h-11 w-16 shrink-0" type="color" data-k="color" value="${esc(hex)}"><div class="grid grid-cols-3 gap-1.5 flex-1">${[['r','R',r],['g','G',g],['b','B',b]].map(([k,l,v])=>`<input class="inp !px-2" type="number" min="0" max="255" data-rgb="${k}" placeholder="${l}" title="${l}" value="${v}">`).join('')}</div></div><button type="button" class="text-xs text-indigo-600 font-semibold mt-1" data-defcolor>Pakai warna default (R106 G161 B23)</button></div>`}
+
+function navItems(){return NAV.filter(([k])=>{if(!ROLE)return true;const p=ROLE.permissions||{};return k==='home'||(k==='products'&&p.products)||(k==='orders'&&p.orders)||(k==='invoice'&&p.invoices)||(k==='affiliate'&&p.affiliate)})}
+async function resolveRole(){
+  const u=session.user;
+  let {data:st}=await sb.from('staff').select('*').eq('user_id',u.id).maybeSingle();
+  if(!st&&u.user_metadata?.invite_code){await sb.rpc('claim_staff');({data:st}=await sb.from('staff').select('*').eq('user_id',u.id).maybeSingle())}
+  if(st)return st.active?st:'inactive';
+  if(u.user_metadata?.is_staff)return 'invalid';
+  return null;
+}
+const PLAB={stats:'Statistik & grafik',products:'Produk',orders:'Pesanan',invoices:'Invoice',affiliate:'Afiliasi (kelola afiliator)'};
+const PRESET={kasir:['orders','invoices'],produk:['products'],admin:['stats','products','orders','invoices','affiliate'],custom:[]};
+const toSet=a=>Object.fromEntries(a.map(k=>[k,true]));
+const permChecks=sel=>Object.entries(PLAB).map(([k,l])=>`<label class="flex items-center gap-2 text-sm"><input type="checkbox" class="accent-indigo-600" data-perm="${k}" ${sel[k]?'checked':''}>${l}</label>`).join('');
+const permChips=p=>Object.entries(PLAB).filter(([k])=>(p||{})[k]).map(([k,l])=>`<span class="text-[11px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">${l}</span>`).join(' ')||'<span class="text-xs text-slate-400">Tanpa izin</span>';
+
+function staffBody(C){
+  if(C.staffErr)return `<h2 class="font-extrabold text-xl mb-3">Staf</h2><div class="card p-5 text-sm text-slate-500">Fitur staf belum aktif (${esc(C.staffErr)}). Jalankan schema_v6.sql di Supabase.</div>`;
+  const pend=C.invites.filter(i=>!i.used_by);
+  return `<h2 class="font-extrabold text-xl mb-1">Staf &amp; Karyawan</h2><p class="text-xs text-slate-500 mb-3">Anda adalah <b>Super Admin</b>. Buat undangan, bagikan link ke staf, lalu atur izin aksesnya kapan saja.</p>
+  <form id="stinv" class="card p-4 space-y-3"><p class="sec !mt-0">UNDANG STAF BARU</p><input class="inp" name="n" placeholder="Nama staf" required>
+    <select class="inp" name="preset"><option value="kasir">Kasir (pesanan &amp; invoice)</option><option value="produk">Pengelola produk</option><option value="admin">Admin (semua kecuali setelan &amp; staf)</option><option value="custom">Atur sendiri</option></select>
+    <div id="permbox" class="space-y-1.5">${permChecks(toSet(PRESET.kasir))}</div>
+    <button class="btn w-full" type="submit">Buat undangan</button><p class="text-xs text-slate-400">Link berlaku 14 hari dan hanya bisa dipakai sekali. Staf tidak bisa membuka Setelan maupun menu Staf.</p></form>
+  ${pend.length?`<p class="sec">UNDANGAN MENUNGGU (${pend.length})</p>`+pend.map(i=>{const l=`${baseUrl()}#/staff?code=${i.code}`;return `<div class="card p-3 mb-2"><div class="flex justify-between gap-2"><p class="font-semibold text-sm">${esc(i.name||'-')}</p><button class="text-xs text-red-500 font-semibold" data-invdel="${i.id}">Hapus</button></div><div class="flex flex-wrap gap-1 mt-1">${permChips(i.permissions)}</div><div class="mt-2 flex items-center gap-2 bg-slate-50 rounded-xl p-2 text-xs"><span class="truncate flex-1">${esc(l)}</span><button class="btn btn-ghost !py-1 !px-3 text-xs" data-icopy="${esc(l)}">Salin</button></div></div>`}).join(''):''}
+  <p class="sec">STAF (${C.staffList.length})</p>
+  ${C.staffList.map(s=>`<div class="card p-3 mb-2"><div class="flex justify-between gap-2"><div class="min-w-0"><p class="font-semibold truncate">${esc(s.name)}</p><p class="text-xs text-slate-400 truncate">${esc(s.email)}</p></div><input type="checkbox" class="sw" data-sact="${s.id}" ${s.active?'checked':''} title="Akun aktif"></div><div class="flex flex-wrap gap-1 mt-2">${permChips(s.permissions)}</div><div class="flex gap-2 mt-3"><button class="btn btn-ghost !py-1 !px-3 text-xs" data-sedit="${s.id}">Ubah izin</button><button class="btn btn-danger !py-1 !px-3 text-xs" data-sdel="${s.id}">Hapus</button></div></div>`).join('')||'<div class="card p-5 text-center text-sm text-slate-500">Belum ada staf.</div>'}`;
+}
+function bindStaff(C){
+  const fm=$('#stinv');
+  if(fm){fm.elements.preset.onchange=e=>{const set=toSet(PRESET[e.target.value]);$$('[data-perm]',fm).forEach(c=>c.checked=!!set[c.dataset.perm])};
+    fm.onsubmit=e=>{e.preventDefault();withLoading($('button[type=submit]',fm),async()=>{
+      const permissions=Object.fromEntries($$('[data-perm]',fm).map(c=>[c.dataset.perm,c.checked]));
+      const {error}=await sb.from('staff_invites').insert({owner_id:C.uid,code:crypto.randomUUID().replace(/-/g,'').slice(0,12),name:fm.elements.n.value.trim(),permissions});
+      if(error)throw error;toast('Undangan dibuat. Salin linknya dan kirim ke staf.');viewDash()})}}
+  $$('[data-icopy]').forEach(b=>b.onclick=()=>copy(b.dataset.icopy));
+  $$('[data-invdel]').forEach(b=>b.onclick=()=>withLoading(b,async()=>{const {error}=await sb.from('staff_invites').delete().eq('id',b.dataset.invdel);if(error)throw error;toast('Undangan dihapus');viewDash()}));
+  $$('[data-sact]').forEach(c=>c.onchange=async()=>{const {error}=await sb.from('staff').update({active:c.checked}).eq('id',c.dataset.sact);if(error){c.checked=!c.checked;toast(error.message,false)}else toast(c.checked?'Staf diaktifkan':'Staf dinonaktifkan')});
+  $$('[data-sdel]').forEach(b=>b.onclick=()=>{if(!confirm('Hapus akses staf ini? Akun login-nya tidak lagi bisa membuka dashboard.'))return;
+    withLoading(b,async()=>{const {error}=await sb.from('staff').delete().eq('id',b.dataset.sdel);if(error)throw error;toast('Staf dihapus');viewDash()})});
+  $$('[data-sedit]').forEach(b=>b.onclick=()=>{const s=C.staffList.find(x=>x.id===b.dataset.sedit);
+    openModal(`<div class="flex justify-between items-center mb-4"><h3 class="font-extrabold text-lg">Ubah izin staf</h3><button id="cl" class="text-slate-400 text-2xl" aria-label="Tutup">&times;</button></div>
+    <form id="sef" class="space-y-3"><input class="inp" name="n" value="${esc(s.name)}" required><div class="space-y-1.5">${permChecks(s.permissions||{})}</div><button class="btn w-full" type="submit">Simpan</button></form>`);
+    $('#cl').onclick=closeModal;
+    $('#sef').onsubmit=e=>{e.preventDefault();const f=e.target;withLoading($('button',f),async()=>{
+      const permissions=Object.fromEntries($$('[data-perm]',f).map(c=>[c.dataset.perm,c.checked]));
+      const {error}=await sb.from('staff').update({name:f.elements.n.value.trim(),permissions}).eq('id',s.id);if(error)throw error;closeModal();toast('Izin diperbarui');viewDash()})}});
+}
+function staffAffiliate(C){
+  return `<h2 class="font-extrabold text-xl mb-3">Afiliasi</h2><p class="sec !mt-0">AFILIATOR TOKO (${C.mine.length})</p>
+  ${C.mine.map(a=>{const os=C.orders.filter(x=>x.affiliate_code===a.code),c=os.filter(x=>x.status==='Lunas').reduce((s,x)=>s+Number(x.commission||0),0);
+    return `<div class="card p-3 mb-2 flex justify-between items-center gap-2 text-sm"><div class="min-w-0"><p class="font-semibold truncate">@${esc(a.profiles?.username||'-')}</p><p class="text-xs text-slate-400">Kode ${esc(a.code)} · ${os.length} pesanan</p></div><div class="text-right shrink-0"><p class="font-bold text-emerald-600">${rp(c)}</p><button class="text-xs text-red-500 font-semibold" data-adel="${a.id}">Hapus</button></div></div>`}).join('')||'<div class="card p-5 text-center text-sm text-slate-500">Belum ada afiliator.</div>'}`;
+}
+function staffHome(C,orderRow){
+  const tabs=navItems().filter(([k])=>k!=='home');
+  return `<div class="rounded-3xl p-5 text-white relative overflow-hidden shadow-xl" style="background:var(--g)"><div class="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-white/10"></div><p class="text-sm opacity-90 relative">Selamat datang,</p><p class="text-2xl font-extrabold relative">${esc(C.stf.name)}</p><p class="text-sm opacity-90 mt-1 relative">Staf di ${esc(C.P.store_name)}</p></div>
+  <div class="grid grid-cols-2 gap-3 mt-3">${tabs.map(([k,i,l])=>`<button class="card p-4 text-left" data-tab="${k}"><span class="w-10 h-10 rounded-xl grid place-items-center text-lg text-white mb-2" style="background:var(--g)">${i}</span><p class="font-bold">${l}</p></button>`).join('')||'<div class="card p-5 text-sm text-slate-500 col-span-2">Belum ada izin akses. Hubungi pemilik toko.</div>'}</div>
+  ${C.can('stats')?'<div id="vc"></div>':''}
+  ${C.can('orders')?`<p class="font-bold mt-5 mb-2">Pesanan terbaru</p>${C.orders.slice(0,3).map(orderRow).join('')||'<div class="card p-6 text-center text-sm text-slate-500">Belum ada pesanan.</div>'}`:''}`;
+}
+function viewStaffSignup(code){
+  resetTheme();
+  app.innerHTML=`<div class="min-h-screen flex items-center justify-center p-4"><div class="w-full max-w-sm"><div class="text-center mb-6"><div class="mx-auto w-12 h-12 rounded-2xl grid place-items-center text-white text-xl font-extrabold" style="background:linear-gradient(135deg,#6366f1,#7c3aed)">T</div><h1 class="mt-4 text-2xl font-extrabold">Daftar sebagai staf</h1><p class="text-sm text-slate-500 mt-1">Gunakan link undangan dari pemilik toko.</p></div>
+  <form id="sf" class="card p-5 space-y-3"><input class="inp" name="name" placeholder="Nama lengkap" required><input class="inp" type="email" name="email" placeholder="Email" required><input class="inp" type="password" name="password" placeholder="Password (min. 6 karakter)" minlength="6" required><input class="inp" name="code" placeholder="Kode undangan" value="${esc(code)}" required><button class="btn w-full" type="submit">Buat akun staf</button></form>
+  <p class="text-center text-sm text-slate-500 mt-4">Sudah punya akun? <a href="#/login" class="text-indigo-600 font-semibold">Masuk</a></p></div></div>`;
+  $('#sf').onsubmit=e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));
+    withLoading($('#sf button'),async()=>{
+      const {data,error}=await sb.auth.signUp({email:f.email,password:f.password,options:{data:{is_staff:true,invite_code:f.code.trim(),full_name:f.name}}});
+      if(error)throw new Error(error.message);
+      if(!data.session){toast('Akun staf dibuat. Cek email untuk konfirmasi, lalu masuk.');return go('login')}
+      go('dashboard')})};
+}
+function forgotModal(){
+  openModal(`<div class="flex justify-between items-center mb-3"><h3 class="font-extrabold text-lg">Reset password</h3><button id="cl" class="text-slate-400 text-2xl" aria-label="Tutup">&times;</button></div><form id="fpf" class="space-y-3"><input class="inp" type="email" name="e" placeholder="Email akun Anda" required><button class="btn w-full" type="submit">Kirim link reset</button></form>`);
+  $('#cl').onclick=closeModal;
+  $('#fpf').onsubmit=e=>{e.preventDefault();withLoading($('button',e.target),async()=>{const {error}=await sb.auth.resetPasswordForEmail(e.target.elements.e.value.trim(),{redirectTo:baseUrl()});if(error)throw error;closeModal();toast('Link reset dikirim. Cek email Anda.')})};
+}
+function passwordModal(){
+  openModal(`<h3 class="font-extrabold text-lg mb-3">Buat password baru</h3><form id="npf" class="space-y-3"><input class="inp" type="password" name="p" minlength="6" placeholder="Password baru (min. 6 karakter)" required><button class="btn w-full" type="submit">Simpan password</button></form>`);
+  $('#npf').onsubmit=e=>{e.preventDefault();withLoading($('button',e.target),async()=>{const {error}=await sb.auth.updateUser({password:e.target.elements.p.value});if(error)throw error;closeModal();toast('Password diperbarui');go('dashboard')})};
+}
+
+/* ---- Pratinjau link / thumbnail ---- */
+function ogData(P){const S=(P.theme||{}).store||{};return {u:baseUrl(),img:safeUrl(P.thumbnail_url)||safeUrl(P.banner_url)||safeUrl(P.avatar_url)||'',t:P.store_name||'',d:(P.bio||S.hero_sub||'').slice(0,200)}}
+function ogBlock(P){const {u,img,t,d}=ogData(P),m=(a,b)=>`<meta ${a} content="${esc(b)}">`;
+  return ['<!--OG-START-->',m('name="description"',d),m('property="og:type"','website'),m('property="og:site_name"',t),m('property="og:title"',t),m('property="og:description"',d),m('property="og:image"',img),m('property="og:url"',u),m('name="twitter:card"','summary_large_image'),m('name="twitter:title"',t),m('name="twitter:description"',d),m('name="twitter:image"',img),'<!--OG-END-->'].join('\n')}
+function ogCard(P){const {img,t,d}=ogData(P);
+  return `<div class="card p-4 space-y-3"><p class="sec !mt-0">PRATINJAU LINK SAAT DIBAGIKAN</p>
+  <div class="flex rounded-xl overflow-hidden border border-slate-200 bg-slate-50"><div class="w-24 sm:w-28 shrink-0 bg-slate-200 grid place-items-center text-slate-400 text-xs text-center">${img?`<img src="${esc(img)}" class="w-full h-full object-cover" alt="">`:'Belum ada gambar'}</div><div class="p-3 min-w-0"><p class="font-bold text-sm truncate">${esc(t)}</p><p class="text-xs text-slate-500 line-clamp-2">${esc(d)}</p><p class="text-xs text-slate-400 mt-1">${esc(location.host)}</p></div></div>
+  <p class="text-xs text-slate-500">WhatsApp, Facebook, dan Telegram membaca thumbnail dari tag di file <b>index.html</b> tanpa menjalankan JavaScript. Jadi thumbnail baru muncul setelah <b>index.html</b> di GitHub diganti. Langkahnya: isi gambar di atas, klik <b>Simpan pengaturan</b>, lalu klik tombol di bawah dan unggah file hasil unduhan ke GitHub (timpa index.html).</p>
+  <div class="flex gap-2 flex-wrap"><button type="button" id="ogdl" class="btn">Unduh index.html dengan thumbnail</button><button type="button" id="ogcp" class="btn btn-ghost">Salin meta tag</button></div>
+  <p class="text-[11px] text-slate-400">Gambar disarankan 1200×630 px, JPG atau PNG, di bawah 300 KB. Jika tidak muncul di WhatsApp, kecilkan ukuran file lalu bagikan ulang (WhatsApp menyimpan cache preview).</p></div>`}
+function bindOG(C){
+  if(!$('#ogdl'))return;
+  $('#ogcp').onclick=()=>copy(ogBlock(C.P));
+  $('#ogdl').onclick=e=>withLoading(e.currentTarget,async()=>{
+    const r=await fetch(baseUrl(),{cache:'no-store'});if(!r.ok)throw new Error('Gagal membaca index.html dari situs.');
+    let h=await r.text();if(!/<!--OG-START-->[\s\S]*?<!--OG-END-->/.test(h))throw new Error('Penanda OG tidak ditemukan. Pakai index.html versi terbaru dulu.');
+    h=h.replace(/<!--OG-START-->[\s\S]*?<!--OG-END-->/,()=>ogBlock(C.P)).replace(/<title>[\s\S]*?<\/title>/,()=>'<title>'+esc(C.P.store_name)+'</title>');
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([h],{type:'text/html'}));a.download='index.html';a.click();toast('index.html diunduh. Unggah ke GitHub.')});
 }
 
 /* ============ TOKO PUBLIK ============ */
@@ -602,6 +726,7 @@ function settingsBody(C){
       <div>${FL('Transfer bank (satu per baris: Bank|No. Rekening|Atas Nama)')}<textarea class="inp" name="banks" rows="3" placeholder="BCA|1234567890|Budi Santoso">${esc((pm.banks||[]).map(b=>[b.bank,b.no,b.name].join('|')).join('\n'))}</textarea></div>
       <div>${FL('E-Wallet (satu per baris: Nama|Nomor)')}<textarea class="inp" name="ews" rows="3" placeholder="DANA|081234567890">${esc((pm.ewallets||[]).map(w=>[w.name,w.no].join('|')).join('\n'))}</textarea></div>
       <input class="inp" name="other" value="${esc(pm.other)}" placeholder="Metode lain (mis. Bayar di tempat)"></div>
+    ${ogCard(P)}
     <div class="card p-4 space-y-3"><p class="sec !mt-0">TAMPILAN DASHBOARD</p>${palRow('d',D.c1||'#4f46e5',D.c2||'#7c3aed')}</div>
     <div class="card p-4 space-y-3"><p class="sec !mt-0">TAMPILAN TOKO PUBLIK</p>${palRow('s',S.c1||'#4f46e5',S.c2||'#7c3aed')}
       <div class="grid grid-cols-2 gap-2">
@@ -618,7 +743,7 @@ function settingsBody(C){
   <button id="lo" class="btn btn-danger w-full mt-3">Keluar</button>`;
 }
 function bindSettings(C){
-  const f=$('#pf');if(!f)return;const {P,pm,uid}=C,E=f.elements;
+  const f=$('#pf');if(!f)return;const {P,pm,uid}=C,E=f.elements;bindOG(C);
   $$('[data-pal]',f).forEach(b=>b.onclick=()=>{const w=b.dataset.pal;E[w+'1'].value=b.dataset.c1;E[w+'2'].value=b.dataset.c2;if(w==='d')applyTheme(b.dataset.c1,b.dataset.c2)});
   E.d1.oninput=E.d2.oninput=()=>applyTheme(E.d1.value,E.d2.value);
   E.username.oninput=()=>{$('#slugprev').textContent=baseUrl()+'#/store/'+E.username.value.trim().toLowerCase()};
