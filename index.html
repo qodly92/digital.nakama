@@ -179,7 +179,7 @@ async function viewDash(){
   ]);
   const err=p.error||pr.error||o.error||af.error||st.error||iv.error||ev.error||dr.error;
   if(err){app.innerHTML=`<div class="min-h-screen grid place-items-center p-6 text-center"><div class="max-w-sm"><p class="font-bold">Gagal memuat data</p><p class="text-sm text-slate-500 mt-1">${esc(err.message)}</p><p class="text-xs text-slate-400 mt-2">Pastikan semua file schema (schema.sql sampai schema_v5.sql) sudah dijalankan.</p><button class="btn mt-4" onclick="viewDash()">Coba lagi</button> <button class="btn btn-danger mt-4" id="lo0">Keluar</button></div></div>`;$('#lo0').onclick=async()=>{await sb.auth.signOut();go('')};return}
-  const P=p.data,prods=pr.data,orders=o.data,mine=af.data,myAff=st.data||[];const invoices=iv.data,dir=dr.data||[];EV=ev.data||[];CUR_PRODS=prods;
+  const P=p.data,prods=pr.data,orders=o.data,mine=af.data,myAff=st.data||[];const invoices=iv.data,dir=dr.data||[];EV=ev.data||[];CUR_PRODS=prods;CUR_P=P;
   applyTheme(P.theme?.dash?.c1,P.theme?.dash?.c2);{const rs=document.documentElement.style;rs.removeProperty('--br');rs.removeProperty('--cr')}document.body.style.background='';setMeta('Dashboard - '+P.store_name,'','',P.favicon_url);
   const pm=P.payment_methods||{};let staffList=[],invites=[],staffErr=null;
   if(!stf){const [a,b]=await Promise.all([sb.from('staff').select('*').order('created_at'),sb.from('staff_invites').select('*').order('created_at',{ascending:false})]);staffErr=(a.error||b.error)?(a.error||b.error).message:null;staffList=a.data||[];invites=b.data||[]}
@@ -281,15 +281,15 @@ function priceTag(x){const c=x.currency||'IDR';
 
 function productsBody(C){
   const ps=C.prods;
-  return `<div class="flex items-center justify-between mb-1"><h2 class="font-extrabold text-xl">Produk</h2><div class="flex gap-2"><button id="bulkp" class="btn btn-ghost">+ Banyak</button><button id="addp" class="btn">+ Tambah</button></div></div>
+  return `<div class="flex items-center justify-between mb-1"><h2 class="font-extrabold text-xl">Produk</h2><div class="flex gap-2 flex-wrap justify-end"><button id="bannerall" class="btn btn-ghost">Banner semua</button><button id="bulkp" class="btn btn-ghost">+ Banyak</button><button id="addp" class="btn">+ Tambah</button></div></div>
   <p class="text-xs text-slate-500 mb-3">Atur urutan tampil di toko: seret kartu (desktop) atau pakai panah ▲▼. Matikan saklar untuk menyembunyikan produk dari toko.</p>
   <div id="plist">${ps.length?ps.map(x=>`<div class="card p-3 mb-3 flex items-center gap-2 ${x.is_active===false?'bg-slate-50':''}" draggable="true" data-pid="${x.id}">
     <span class="cursor-grab text-slate-300 text-xl select-none px-1" title="Seret untuk mengurutkan">⠿</span>
-    <img src="${esc(safeUrl(x.image_url))}" draggable="false" onerror="this.style.visibility='hidden'" class="w-14 h-14 rounded-xl object-cover bg-indigo-50 shrink-0" alt="">
+    <img src="${esc(safeUrl(x.image_url)||autoBanner(x,C.P))}" draggable="false" onerror="this.style.visibility='hidden'" class="w-14 h-14 rounded-xl object-cover bg-indigo-50 shrink-0" alt="">
     <div class="flex-1 min-w-0"><p class="font-semibold truncate ${x.is_active===false?'opacity-50':''}">${esc(x.title)}</p><p class="text-xs text-slate-500">${esc(x.category)}${x.stock!=null?' · Stok '+x.stock:''}${x.is_active===false?' · Disembunyikan':''}</p><p class="text-sm mt-0.5">${priceTag(x)}</p></div>
     <div class="flex flex-col items-end gap-1.5">
       <div class="flex items-center gap-1"><button class="w-7 h-7 rounded-lg bg-slate-100 text-xs" data-up aria-label="Naikkan">▲</button><button class="w-7 h-7 rounded-lg bg-slate-100 text-xs" data-down aria-label="Turunkan">▼</button><input type="checkbox" class="sw ml-1" data-vis="${x.id}" ${x.is_active===false?'':'checked'} title="Tampilkan di toko"></div>
-      <div class="flex gap-1.5"><button class="btn btn-ghost !py-1 !px-3 text-xs" data-sales="${x.id}">Sales page</button><button class="btn btn-ghost !py-1 !px-3 text-xs" data-edit="${x.id}">Ubah</button><button class="btn btn-danger !py-1 !px-3 text-xs" data-del="${x.id}">Hapus</button></div></div></div>`).join(''):'<div class="card p-8 text-center text-slate-500 text-sm">Belum ada produk. Tambahkan produk pertama Anda.</div>'}</div>`;
+      <div class="flex gap-1.5"><button class="btn btn-ghost !py-1 !px-3 text-xs" data-banner="${x.id}">Banner</button><button class="btn btn-ghost !py-1 !px-3 text-xs" data-sales="${x.id}">Sales page</button><button class="btn btn-ghost !py-1 !px-3 text-xs" data-edit="${x.id}">Ubah</button><button class="btn btn-danger !py-1 !px-3 text-xs" data-del="${x.id}">Hapus</button></div></div></div>`).join(''):'<div class="card p-8 text-center text-slate-500 text-sm">Belum ada produk. Tambahkan produk pertama Anda.</div>'}</div>`;
 }
 function bindProducts(C){
   const box=$('#plist');if(!box)return;let drag=null;
@@ -709,7 +709,7 @@ function bulkForm(){
   openModal(`<div class="flex justify-between items-center mb-2"><h3 class="font-extrabold text-lg">Tambah banyak produk</h3><button id="cl" class="text-slate-400 text-2xl" aria-label="Tutup">&times;</button></div>
   <p class="text-xs text-slate-500 mb-3">Enam produk Anda sudah terisi. Isi <b>harga</b> tiap produk, ubah jika perlu, lalu klik tombol di bawah. Gambar, flash sale, dan add-on bisa diatur lewat tombol Ubah setelahnya. Setiap produk otomatis punya sales page sendiri.</p>
   <div id="brows" class="space-y-3">${draw()}</div>
-  <button type="button" id="badd" class="btn btn-ghost w-full mt-3">+ Tambah baris</button><button type="button" id="bgo" class="btn w-full mt-2">Tambah semua produk</button>`);
+  <label class="flex items-center gap-2 text-sm mt-3"><input type="checkbox" id="bgen" checked class="accent-indigo-600">Buat banner otomatis untuk produk baru</label><button type="button" id="badd" class="btn btn-ghost w-full mt-3">+ Tambah baris</button><button type="button" id="bgo" class="btn w-full mt-2">Tambah semua produk</button>`);
   wide();$('#cl').onclick=closeModal;
   const box=$('#brows');
   box.addEventListener('input',e=>{const row=e.target.closest('[data-row]');if(row&&e.target.dataset.f)rows[+row.dataset.row][e.target.dataset.f]=e.target.value});
@@ -722,8 +722,9 @@ function bulkForm(){
     const base=Math.max(0,...CUR_PRODS.map(p=>p.sort_order||0)),used=[];
     const data=ok.map((r,i)=>{const slug=uniqueSlug(r.t,used);used.push(slug);
       return {user_id:OID,title:r.t.trim(),category:r.c,price:Number(r.p),currency:'IDR',description:r.d.trim(),digital_file_url:r.u.trim(),slug,sort_order:base+i+1,is_active:true,button_label:'Beli Sekarang',addons:[],sales:{}}});
-    const {error}=await sb.from('products').insert(data);
+    const {data:ins,error}=await sb.from('products').insert(data).select('id,title,category,slug');
     if(error)throw new Error(/slug|column/i.test(error.message)?'Jalankan schema_v7.sql dulu. ('+error.message+')':error.message);
+    if($('#bgen')&&$('#bgen').checked){let n=0;for(const r of ins||[]){toast(`Membuat banner ${++n}/${ins.length}...`);try{await makeBanner(r,CUR_P)}catch(e){console.error(e)}}}
     closeModal();toast(data.length+' produk ditambahkan');viewDash()});
 }
 
@@ -766,6 +767,9 @@ function salesForm(x,P){
 }
 function bindSales(C){
   const b=$('#bulkp');if(b)b.onclick=bulkForm;
+  const ba=$('#bannerall');if(ba)ba.onclick=()=>{if(!C.prods.length)return toast('Belum ada produk.',false);if(!confirm('Buat banner seragam untuk semua produk? Gambar utama produk yang sekarang akan diganti.'))return;
+    withLoading(ba,async()=>{let n=0;for(const x of C.prods){toast(`Membuat banner ${++n}/${C.prods.length}...`);await makeBanner(x,C.P)}toast('Banner semua produk selesai');viewDash()})};
+  $$('[data-banner]').forEach(x=>x.onclick=()=>withLoading(x,async()=>{await makeBanner(C.prods.find(p=>p.id===x.dataset.banner),C.P);toast('Banner dibuat');viewDash()}));
   $$('[data-sales]').forEach(x=>x.onclick=()=>salesForm(C.prods.find(p=>p.id===x.dataset.sales),C.P));
 }
 
@@ -793,7 +797,7 @@ async function viewSales(username,slug,ref){
   const [sk,rl]=await Promise.all([sb.rpc('store_stock',{p_seller:p.id}),sb.from('products').select('id,title,slug,price,currency,image_url,category,sale_price,flash_sale,sale_ends_at,pay_what_you_want').eq('user_id',p.id).eq('is_active',true).neq('id',prod.id).order('sort_order',{ascending:true,nullsFirst:false}).limit(3)]);
   const rem=((sk.data||[]).find(r=>r.product_id===prod.id)||{}).remaining,sold=rem===0,cur=prod.currency||'IDR',fl=isFlash(prod);
   const pm=p.payment_methods||{},pays=[...(pm.qris?['QRIS']:[]),...(pm.banks||[]).map(b=>b.bank),...(pm.ewallets||[]).map(w=>w.name),...(pm.other?['Lainnya']:[])];
-  const imgs=[prod.image_url,...(sa.gallery||[])].filter(safeUrl),vid=ytId(sa.video);
+  const imgs0=[prod.image_url,...(sa.gallery||[])].filter(safeUrl),imgs=imgs0.length?imgs0:[autoBanner(prod,p)],vid=ytId(sa.video);
   const ben=(sa.benefits&&sa.benefits.length?sa.benefits:DEF_BEN[prod.category]||[]),inc=sa.includes||[];
   const faqs=(sa.faqs&&sa.faqs.length?sa.faqs:[{q:'Bagaimana cara memesan?',a:'Klik tombol beli, isi data singkat, pilih metode pembayaran, lalu konfirmasi lewat WhatsApp.'},{q:'Metode pembayaran apa saja?',a:pays.length?pays.join(', ')+'.':'Dikonfirmasi lewat WhatsApp dengan penjual.'},{q:'Berapa lama pesanan diproses?',a:'Setelah pembayaran dikonfirmasi, penjual segera memproses pesanan Anda.'}]);
   const cta=sa.cta||prod.button_label||'Beli Sekarang',href=x=>`#/store/${esc(p.username)}/${esc(x.slug||x.id)}`;
@@ -824,7 +828,7 @@ async function viewSales(username,slug,ref){
   ${(sa.testimonials||[]).length?sec('Kata mereka',`<div class="grid sm:grid-cols-2 gap-4">${sa.testimonials.map(t=>`<div class="card p-5"><p class="text-sm text-slate-600" style="white-space:pre-line">“${esc(t.t)}”</p><p class="mt-3 text-sm font-bold">${esc(t.n)}</p></div>`).join('')}</div>`):''}
   ${sec('Pertanyaan yang sering diajukan',`<div class="space-y-2">${faqs.map(f=>`<details class="card p-4"><summary class="font-semibold cursor-pointer">${esc(f.q)}</summary><p class="text-sm text-slate-500 mt-2" style="white-space:pre-line">${esc(f.a)}</p></details>`).join('')}</div>`)}
   <section class="max-w-5xl mx-auto px-4 py-6"><div class="rounded-3xl p-8 text-center text-white relative overflow-hidden" style="background:var(--g)"><div class="absolute -right-10 -top-10 w-44 h-44 rounded-full bg-white/10"></div><p class="text-2xl font-extrabold relative">Siap memesan ${esc(prod.title)}?</p><p class="opacity-90 mt-1 relative">${money(unitPrice(prod),cur)} · pesan sekarang, konfirmasi lewat WhatsApp.</p><button class="btn cta !bg-white !text-indigo-700 mt-4 !px-8 !py-3 relative" ${sold?'disabled':''}>${sold?'Stok habis':esc(cta)}</button></div></section>
-  ${(rl.data||[]).length?sec('Produk lainnya',`<div class="grid sm:grid-cols-3 gap-4">${rl.data.map(x=>`<a href="${href(x)}" class="card overflow-hidden block transition hover:-translate-y-1">${safeUrl(x.image_url)?`<img src="${esc(x.image_url)}" class="w-full h-32 object-cover" alt="">`:`<div class="h-20" style="background:var(--g);opacity:.9"></div>`}<div class="p-3"><p class="font-bold text-sm">${esc(x.title)}</p><p class="text-indigo-600 font-extrabold mt-1">${money(unitPrice(x),x.currency||'IDR')}</p></div></a>`).join('')}</div>`):''}
+  ${(rl.data||[]).length?sec('Produk lainnya',`<div class="grid sm:grid-cols-3 gap-4">${rl.data.map(x=>`<a href="${href(x)}" class="card overflow-hidden block transition hover:-translate-y-1"><img src="${safeUrl(x.image_url)?esc(x.image_url):autoBanner(x,p)}" class="w-full h-32 object-cover" alt=""><div class="p-3"><p class="font-bold text-sm">${esc(x.title)}</p><p class="text-indigo-600 font-extrabold mt-1">${money(unitPrice(x),x.currency||'IDR')}</p></div></a>`).join('')}</div>`):''}
   <footer class="mt-8 text-white" style="background:var(--g)"><div class="max-w-5xl mx-auto px-4 py-8 flex flex-wrap items-center justify-between gap-3"><div><p class="font-extrabold">${esc(p.store_name)}</p><p class="text-xs opacity-80">Dibuat dengan TokoKilat</p></div><a href="#/store/${esc(p.username)}" class="btn !bg-white !text-indigo-700">Lihat semua produk</a></div></footer></div>
   <div class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-100 p-3 flex items-center gap-3 shadow-2xl"><div class="min-w-0"><p class="text-[11px] text-slate-400 truncate">${esc(prod.title)}</p><p class="font-extrabold text-indigo-600">${money(unitPrice(prod),cur)}</p></div>${buyBtn('flex-1')}</div>`;
   $$('.cta').forEach(b=>b.onclick=()=>{track(p.id,'click',prod.id);checkout(prod,p,ref,rem)});
@@ -833,6 +837,77 @@ async function viewSales(username,slug,ref){
   window.scrollTo(0,0);
 }
 
+/* ===== v8: desain banner produk (seragam, menyesuaikan jenis produk) ===== */
+function bannerKind(t,c){
+  const s=String(t||'').toLowerCase();
+  if(/canva/.test(s))return 'canva';
+  if(/elementor|wordpress|website|web\b/.test(s))return 'web';
+  if(/undangan|invitation|wedding|nikah|pernikahan/.test(s))return 'invite';
+  if(/stampel|stempel|stamp/.test(s))return 'stamp';
+  if(/islam|muslim|hijriah|ramadan|ramadhan|quran|al-?qur/.test(s))return 'islam';
+  if(/printable|template|pdf|ebook|e-book/.test(s))return 'print';
+  return c==='Jasa/Layanan'?'web':c==='Produk Fisik'?'box':'print';
+}
+const BN_SUB={canva:'Template siap edit · tinggal ganti teks & gambar',web:'Instalasi cepat · rapi & siap dipakai',invite:'Desain elegan · mudah dibagikan lewat WhatsApp',stamp:'Desain custom · sesuai kebutuhan bisnis Anda',islam:'Format PDF · siap diunduh & dicetak',print:'Format PDF · siap diunduh & dicetak',box:'Kualitas terjamin · pesan mudah via WhatsApp'};
+const BN_CAT={'Produk Digital':'PRODUK DIGITAL','Jasa/Layanan':'JASA / LAYANAN','Produk Fisik':'PRODUK FISIK'};
+function bnWrap(t,max,n){const w=String(t||'').trim().split(/\s+/),L=[];let cur='';for(const x of w){if((cur?cur+' '+x:x).length<=max)cur=cur?cur+' '+x:x;else{if(cur)L.push(cur);cur=x}}if(cur)L.push(cur);if(L.length>n){L.length=n;L[n-1]=L[n-1].replace(/\s*\S*$/,'')+'…'}return L}
+const bnEsc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function bnStar(cx,cy,R,r,n){let d='';for(let i=0;i<n*2;i++){const a=Math.PI*i/n-Math.PI/2,rad=i%2?r:R;d+=(i?'L':'M')+(cx+rad*Math.cos(a)).toFixed(1)+' '+(cy+rad*Math.sin(a)).toFixed(1)}return d+'Z'}
+function bnArt(k){
+  if(k==='canva')return `<g transform="rotate(-8 130 230)"><rect x="34" y="96" width="196" height="270" rx="22" fill="#fff" filter="url(#sh)"/><rect x="52" y="116" width="160" height="104" rx="14" fill="#3dc7be"/><circle cx="132" cy="168" r="26" fill="#fff" fill-opacity=".85"/><rect x="52" y="236" width="110" height="14" rx="7" fill="#1f3d0c"/><rect x="52" y="262" width="160" height="10" rx="5" fill="#cfd8c3"/><rect x="52" y="282" width="130" height="10" rx="5" fill="#cfd8c3"/></g>
+  <g transform="rotate(7 290 270)"><rect x="176" y="134" width="212" height="282" rx="22" fill="#fff" filter="url(#sh)"/><rect x="194" y="154" width="176" height="22" rx="11" fill="#7b61ff"/><rect x="194" y="190" width="176" height="108" rx="14" fill="#ff7a59"/><path d="M194 298 L250 236 L296 282 L322 258 L370 298Z" fill="#fff" fill-opacity=".45"/><rect x="194" y="316" width="120" height="14" rx="7" fill="#1f3d0c"/><rect x="194" y="342" width="176" height="10" rx="5" fill="#cfd8c3"/><rect x="194" y="362" width="140" height="10" rx="5" fill="#cfd8c3"/></g>
+  <g><circle cx="70" cy="430" r="17" fill="#ff7a59"/><circle cx="108" cy="430" r="17" fill="#ffd166"/><circle cx="146" cy="430" r="17" fill="#3dc7be"/><circle cx="184" cy="430" r="17" fill="#7b61ff"/></g>
+  <path d="M338 372 L338 436 L355 421 L367 447 L380 441 L368 415 L392 413Z" fill="#1f3d0c" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+  <path d="${bnStar(372,92,20,7,4)}" fill="#d8f56a"/>`;
+  if(k==='web')return `<g filter="url(#sh)"><rect x="30" y="86" width="370" height="300" rx="24" fill="#fff"/></g><rect x="30" y="86" width="370" height="46" rx="24" fill="#e8f2d2"/><rect x="30" y="112" width="370" height="20" fill="#e8f2d2"/><circle cx="60" cy="109" r="7" fill="#ff7a59"/><circle cx="82" cy="109" r="7" fill="#ffd166"/><circle cx="104" cy="109" r="7" fill="#6aa117"/><rect x="140" y="100" width="200" height="18" rx="9" fill="#fff"/>
+  <rect x="50" y="150" width="330" height="96" rx="14" fill="#6aa117"/><rect x="70" y="172" width="150" height="16" rx="8" fill="#fff"/><rect x="70" y="200" width="100" height="10" rx="5" fill="#fff" fill-opacity=".7"/><rect x="290" y="186" width="70" height="30" rx="15" fill="#d8f56a"/>
+  <rect x="50" y="262" width="100" height="100" rx="12" fill="#eef4e0"/><rect x="165" y="262" width="100" height="100" rx="12" fill="none" stroke="#6aa117" stroke-width="3" stroke-dasharray="8 6"/><circle cx="215" cy="312" r="17" fill="#6aa117"/><path d="M215 303V321M206 312H224" stroke="#fff" stroke-width="4" stroke-linecap="round"/><rect x="280" y="262" width="100" height="100" rx="12" fill="#eef4e0"/>
+  <g transform="translate(350 410)"><circle r="64" fill="#d8f56a" filter="url(#sh)"/><g fill="#1f3d0c">${[0,45,90,135].map(a=>`<rect x="-8" y="-46" width="16" height="92" rx="4" transform="rotate(${a})"/>`).join('')}<circle r="33"/></g><circle r="14" fill="#d8f56a"/></g>`;
+  if(k==='invite')return `<g filter="url(#sh)"><rect x="96" y="44" width="238" height="400" rx="36" fill="#fff"/></g><rect x="114" y="76" width="202" height="336" rx="20" fill="#fff6dd"/><circle cx="215" cy="150" r="46" fill="none" stroke="#c9a24a" stroke-width="4"/><circle cx="215" cy="150" r="36" fill="none" stroke="#c9a24a" stroke-width="2"/><path d="M215 170 C190 150 192 128 207 128 C212 128 215 132 215 136 C215 132 218 128 223 128 C238 128 240 150 215 170Z" fill="#e0455f"/>
+  <rect x="150" y="224" width="130" height="14" rx="7" fill="#7a5c14"/><rect x="170" y="250" width="90" height="10" rx="5" fill="#c9a24a"/><rect x="160" y="276" width="110" height="8" rx="4" fill="#e6d29b"/><rect x="172" y="294" width="86" height="8" rx="4" fill="#e6d29b"/><rect x="130" y="332" width="170" height="40" rx="20" fill="#6aa117"/><rect x="164" y="347" width="102" height="10" rx="5" fill="#fff"/>
+  <g filter="url(#sh)"><rect x="40" y="330" width="260" height="140" rx="16" fill="#fff"/></g><path d="M40 346 Q40 330 56 330 L284 330 Q300 330 300 346 L170 420Z" fill="#f3dfa3"/><path d="M40 470 L140 392 M300 470 L200 392" stroke="#e6d29b" stroke-width="3"/><circle cx="170" cy="414" r="26" fill="#e0455f"/><path d="M170 428 C154 416 155 402 164 402 C168 402 170 405 170 408 C170 405 172 402 176 402 C185 402 186 416 170 428Z" fill="#fff"/>
+  <circle cx="368" cy="96" r="10" fill="#d8f56a"/><circle cx="392" cy="126" r="6" fill="#fff" fill-opacity=".7"/><path d="${bnStar(60,92,16,6,4)}" fill="#d8f56a"/>`;
+  if(k==='stamp')return `<g filter="url(#sh)"><rect x="40" y="292" width="350" height="170" rx="16" fill="#fff"/></g><circle cx="215" cy="378" r="64" fill="none" stroke="#e0455f" stroke-width="7" stroke-opacity=".9"/><circle cx="215" cy="378" r="50" fill="none" stroke="#e0455f" stroke-width="3" stroke-opacity=".9"/><path d="${bnStar(215,378,26,11,5)}" fill="#e0455f" fill-opacity=".9"/><rect x="70" y="316" width="64" height="9" rx="4.5" fill="#cfd8c3"/><rect x="70" y="336" width="44" height="9" rx="4.5" fill="#cfd8c3"/><rect x="300" y="416" width="64" height="9" rx="4.5" fill="#cfd8c3"/><rect x="316" y="436" width="48" height="9" rx="4.5" fill="#cfd8c3"/>
+  <g filter="url(#sh)"><rect x="165" y="30" width="100" height="40" rx="20" fill="#d8f56a"/><rect x="192" y="62" width="46" height="110" rx="10" fill="#d8f56a"/><rect x="176" y="150" width="78" height="26" rx="10" fill="#b8dc4a"/><rect x="122" y="172" width="186" height="52" rx="14" fill="#1f3d0c"/><rect x="132" y="224" width="166" height="26" rx="8" fill="#fff"/></g><circle cx="360" cy="110" r="9" fill="#e0455f" fill-opacity=".8"/><circle cx="384" cy="140" r="5" fill="#e0455f" fill-opacity=".6"/>`;
+  if(k==='islam')return `<mask id="cres"><rect width="430" height="490" fill="#fff"/><circle cx="250" cy="130" r="74" fill="#000"/></mask><circle cx="205" cy="150" r="92" fill="#f6e7a1" mask="url(#cres)"/><path d="${bnStar(318,96,26,10,8)}" fill="#f6e7a1"/><path d="${bnStar(380,180,14,6,8)}" fill="#fff" fill-opacity=".8"/><path d="${bnStar(60,230,12,5,8)}" fill="#fff" fill-opacity=".6"/>
+  <g filter="url(#sh)"><path d="M100 400 a115 115 0 0 1 230 0Z" fill="#14301a"/><rect x="211" y="238" width="8" height="30" fill="#14301a"/><circle cx="215" cy="234" r="8" fill="#f6e7a1"/><rect x="38" y="262" width="36" height="208" fill="#14301a"/><path d="M34 262 L56 220 L78 262Z" fill="#14301a"/><rect x="356" y="262" width="36" height="208" fill="#14301a"/><path d="M352 262 L374 220 L396 262Z" fill="#14301a"/><rect x="38" y="400" width="354" height="70" fill="#14301a"/></g>
+  <path d="M150 470 V428 a22 22 0 0 1 44 0 V470Z M236 470 V428 a22 22 0 0 1 44 0 V470Z" fill="#f6e7a1"/><circle cx="56" cy="300" r="7" fill="#f6e7a1"/><circle cx="374" cy="300" r="7" fill="#f6e7a1"/>`;
+  if(k==='box')return `<g filter="url(#sh)"><path d="M215 120 L370 190 L370 360 L215 430 L60 360 L60 190Z" fill="#fff"/></g><path d="M215 120 L370 190 L215 260 L60 190Z" fill="#e8f2d2"/><path d="M215 260 L215 430 L60 360 L60 190Z" fill="#d9e8bd"/><path d="M215 260 L370 190 L370 360 L215 430Z" fill="#fff"/><path d="M137 155 L292 225" stroke="#6aa117" stroke-width="14" stroke-linecap="round"/><rect x="250" y="320" width="80" height="12" rx="6" fill="#cfd8c3" transform="rotate(-24 290 326)"/><path d="${bnStar(350,92,22,8,4)}" fill="#d8f56a"/>`;
+  return `<g transform="rotate(-7 160 260)"><rect x="40" y="96" width="250" height="330" rx="20" fill="#e6f5bf"/></g><g transform="rotate(4 240 260)"><rect x="82" y="84" width="250" height="330" rx="20" fill="#f4f9e6"/></g>
+  <g filter="url(#sh)"><rect x="96" y="76" width="250" height="340" rx="20" fill="#fff"/></g><rect x="116" y="98" width="130" height="18" rx="9" fill="#1f3d0c"/><rect x="116" y="126" width="90" height="10" rx="5" fill="#cfd8c3"/>
+  ${[0,1,2].map(r=>[0,1,2,3].map(c=>`<rect x="${116+c*52}" y="${160+r*50}" width="42" height="40" rx="8" fill="${(r+c)%3===0?'#6aa117':(r+c)%3===1?'#ffd166':'#e6f5bf'}"/>`).join('')).join('')}
+  <rect x="116" y="320" width="18" height="18" rx="5" fill="#3dc7be"/><rect x="146" y="324" width="150" height="10" rx="5" fill="#cfd8c3"/><rect x="116" y="352" width="18" height="18" rx="5" fill="#ff7a59"/><rect x="146" y="356" width="120" height="10" rx="5" fill="#cfd8c3"/>
+  <g transform="translate(290 376)"><rect width="104" height="50" rx="14" fill="#e0455f" filter="url(#sh)"/><text x="52" y="34" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="800" text-anchor="middle" fill="#fff">PDF</text></g>
+  <g transform="translate(70 96)"><circle r="46" fill="#d8f56a" filter="url(#sh)"/><text y="9" font-family="Arial,Helvetica,sans-serif" font-size="24" font-weight="800" text-anchor="middle" fill="#1f3d0c">1000+</text></g>`;
+}
+function bannerSVG(o){
+  const kind=o.kind||bannerKind(o.title,o.category),cat=BN_CAT[o.category]||'PRODUK',sub=o.sub||BN_SUB[kind]||'';
+  let sz=66,L=bnWrap(o.title,15,3);if(bnWrap(o.title,15,9).length>3){sz=56;L=bnWrap(o.title,18,4);if(bnWrap(o.title,18,9).length>4){sz=46;L=bnWrap(o.title,22,5)}}
+  const lh=Math.round(sz*1.18),ty=178,ey=ty+(L.length-1)*lh,badgeW=76+cat.length*15;
+  const subL=bnWrap(sub,34,2);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#17330b"/><stop offset=".55" stop-color="#3f7a12"/><stop offset="1" stop-color="#6aa117"/></linearGradient><pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="2" fill="#fff" fill-opacity=".14"/></pattern><filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#0b1a05" flood-opacity=".35"/></filter></defs>
+<rect width="1200" height="630" fill="url(#bg)"/><rect width="1200" height="630" fill="url(#dots)"/><circle cx="1120" cy="70" r="210" fill="#fff" fill-opacity=".06"/><circle cx="1120" cy="70" r="130" fill="#fff" fill-opacity=".06"/><circle cx="60" cy="610" r="190" fill="#c9e87a" fill-opacity=".1"/><path d="M0 530 C200 480 360 600 600 540 S1000 490 1200 550 V630 H0Z" fill="#fff" fill-opacity=".06"/>
+<g font-family="'Plus Jakarta Sans',Arial,Helvetica,sans-serif"><rect x="70" y="64" width="${badgeW}" height="46" rx="23" fill="#fff" fill-opacity=".16" stroke="#fff" stroke-opacity=".35"/><circle cx="96" cy="87" r="7" fill="#d8f56a"/><text x="114" y="95" font-size="20" font-weight="800" letter-spacing="2" fill="#fff">${bnEsc(cat)}</text>
+<text font-size="${sz}" font-weight="800" fill="#fff">${L.map((l,i)=>`<tspan x="70" y="${ty+i*lh}">${bnEsc(l)}</tspan>`).join('')}</text>
+<text font-size="26" font-weight="500" fill="#e6f5bf">${subL.map((l,i)=>`<tspan x="70" y="${ey+52+i*36}">${bnEsc(l)}</tspan>`).join('')}</text>
+<rect x="70" y="520" width="306" height="62" rx="31" fill="#d8f56a"/><text x="223" y="560" font-size="24" font-weight="800" fill="#1f3d0c" text-anchor="middle">Dapatkan Sekarang →</text>
+<text x="404" y="558" font-size="22" font-weight="600" fill="#fff" fill-opacity=".85">${bnEsc(o.store||'')}</text></g>
+<g transform="translate(700 70)"><rect width="430" height="490" rx="38" fill="#fff" fill-opacity=".13" stroke="#fff" stroke-opacity=".3"/>${bnArt(kind)}</g></svg>`;
+}
+const autoBanner=(x,P)=>'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(bannerSVG({title:x.title,category:x.category,store:(P&&P.store_name)||''}));
+async function bannerFile(o){
+  const url=URL.createObjectURL(new Blob([bannerSVG(o)],{type:'image/svg+xml;charset=utf-8'})),img=new Image();
+  await new Promise((ok,er)=>{img.onload=ok;img.onerror=()=>er(new Error('Gagal membuat gambar banner'));img.src=url});
+  const cv=document.createElement('canvas');cv.width=1200;cv.height=630;cv.getContext('2d').drawImage(img,0,0,1200,630);URL.revokeObjectURL(url);
+  const blob=await new Promise(r=>cv.toBlob(r,'image/png'));return new File([blob],'banner.png',{type:'image/png'});
+}
+async function makeBanner(prod,P){
+  const f=await bannerFile({title:prod.title,category:prod.category,store:P.store_name});
+  const url=await upload(f,'banner-'+String(prod.slug||prod.id).slice(0,24));
+  const {error}=await sb.from('products').update({image_url:url}).eq('id',prod.id);if(error)throw error;return url;
+}
+
+let CUR_P=null;
 /* ============ TOKO PUBLIK ============ */
 /* ===== v4: tema, setelan, toko publik ===== */
 const PAL=[['Indigo','#4f46e5','#7c3aed'],['Teal','#0f766e','#06b6d4'],['Hijau','#059669','#84cc16'],['Oranye','#ea580c','#f59e0b'],['Pink','#db2777','#f472b6'],['Biru','#2563eb','#38bdf8'],['Slate','#0f172a','#475569']];
@@ -940,7 +1015,7 @@ async function viewStore(username,ref,pid){
     const info=`<div class="p-4 flex flex-col flex-1 min-w-0"><div class="flex flex-wrap gap-1"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full text-white" style="background:var(--g)">${esc(x.category)}</span>${badges}</div>
       <a href="#/store/${esc(p.username)}/${esc(x.slug||x.id)}" class="block"><h3 class="font-bold mt-2 hover:underline">${esc(x.title)}</h3></a>${x.description?`<p class="text-sm text-slate-500 mt-1 line-clamp-3">${esc(x.description)}</p>`:''}
       <div class="flex items-center justify-between gap-2 mt-auto pt-3">${priceHTML(x)}<button class="btn" data-buy="${x.id}" ${sold?'disabled':''}>${sold?'Habis':esc(x.button_label||'Beli Sekarang')}</button></div></div>`;
-    const pic=c=>im?`<img src="${esc(x.image_url)}" class="${c} object-cover bg-indigo-50" alt="${esc(x.title)}" onerror="this.remove()">`:(list?`<div class="w-28 sm:w-40 shrink-0 self-stretch" style="background:var(--g);opacity:.9"></div>`:`<div class="h-24 w-full" style="background:var(--g);opacity:.9"></div>`);
+    const pic=c=>`<img src="${im?esc(x.image_url):autoBanner(x,p)}" class="${c} object-cover bg-indigo-50" alt="${esc(x.title)}">`;
     return list?`<div class="card overflow-hidden flex transition hover:-translate-y-0.5" style="${cs}">${pic('w-28 sm:w-40 shrink-0 self-stretch')}${info}</div>`
       :`<div class="card overflow-hidden flex flex-col transition hover:-translate-y-1" style="${cs}">${pic('w-full h-44')}${info}</div>`};
   const pill=(b,on)=>{b.style.background=on?'var(--g)':'#fff';b.style.color=on?'#fff':'#475569'};
