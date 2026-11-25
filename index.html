@@ -3,20 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Digital Nakama</title>
+<title>TokoKilat - Instant Store</title>
 <link rel="icon" id="fav" href="data:,">
 <!--OG-START-->
-<meta name="description" content="">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="Digital Nakama">
-<meta property="og:title" content="Digital Nakama">
-<meta property="og:description" content="">
-<meta property="og:image" content="https://obvrduoscrdklfofxgkk.supabase.co/storage/v1/object/public/media/7ef2337d-cca4-420e-b4fb-ff1a86b020b0/thumb-1795145226253.png">
-<meta property="og:url" content="https://www.digital-nakama.web.id/">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Digital Nakama">
-<meta name="twitter:description" content="">
-<meta name="twitter:image" content="https://obvrduoscrdklfofxgkk.supabase.co/storage/v1/object/public/media/7ef2337d-cca4-420e-b4fb-ff1a86b020b0/thumb-1795145226253.png">
+<meta property="og:title" content=""><meta property="og:description" content=""><meta property="og:image" content=""><meta name="twitter:card" content="summary_large_image">
 <!--OG-END-->
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
@@ -113,7 +103,8 @@ async function mainStore(){if(MAIN_STORE)return MAIN_STORE;if(_main)return _main
 async function route(){
   const h=location.hash.replace(/^#\/?/,''),[path,q]=h.split('?'),sp=new URLSearchParams(q||'');
   const {data}=await sb.auth.getSession();session=data.session;
-  if(path.startsWith('store/'))return viewStore(decodeURIComponent(path.split('/')[1]||''),sp.get('ref'),sp.get('p'));
+  if(path.startsWith('p/'))return viewSales(null,decodeURIComponent(path.slice(2)),sp.get('ref'));
+  if(path.startsWith('store/')){const pt=path.split('/');return pt[2]?viewSales(decodeURIComponent(pt[1]),decodeURIComponent(pt[2]),sp.get('ref')):viewStore(decodeURIComponent(pt[1]||''),sp.get('ref'),sp.get('p'))}
   if(path==='login')return session?go('dashboard'):viewAuth('login');
   if(path==='register'){if(session)return go('dashboard');if(!ALLOW_REGISTER&&await mainStore())return go('login');return viewAuth('register')}
   if(path==='staff')return session?go('dashboard'):viewStaffSignup(sp.get('code')||'');
@@ -239,7 +230,7 @@ async function viewDash(){
   app.innerHTML=`
   <aside class="hidden md:flex fixed inset-y-0 left-0 w-60 flex-col p-4 text-white overflow-hidden" style="background:linear-gradient(180deg,var(--c1),var(--c2))">
     <div class="absolute -right-12 top-24 w-44 h-44 rounded-full bg-white/10 pointer-events-none"></div><div class="absolute -left-10 bottom-32 w-36 h-36 rounded-full bg-white/10 pointer-events-none"></div><svg class="absolute bottom-0 left-0 w-full pointer-events-none" viewBox="0 0 240 90" fill="#fff" fill-opacity=".08"><path d="M0 40 C60 10 120 70 240 30 V90 H0Z"/></svg>
-    <div class="flex items-center gap-3 px-2 py-3"><div class="w-10 h-10 rounded-xl bg-white/20 grid place-items-center font-extrabold">T</div><p class="font-extrabold text-lg">AQSHA</p></div>
+    <div class="flex items-center gap-3 px-2 py-3"><div class="w-10 h-10 rounded-xl bg-white/20 grid place-items-center font-extrabold">T</div><p class="font-extrabold text-lg">TokoKilat</p></div>
     <nav class="nav mt-4 space-y-1">${navItems().map(([k,i,l])=>`<a data-tab="${k}" class="${dashTab===k?'on':''}"><span>${i}</span>${l}</a>`).join('')}</nav>
     <div class="mt-auto space-y-2 relative"><a href="#/store/${esc(P.username)}" class="btn w-full !bg-white !text-indigo-700">Lihat toko publik</a><button data-logout class="btn w-full !bg-white/15 hover:!bg-white/25">Keluar</button></div>
   </aside>
@@ -290,7 +281,7 @@ function priceTag(x){const c=x.currency||'IDR';
 
 function productsBody(C){
   const ps=C.prods;
-  return `<div class="flex items-center justify-between mb-1"><h2 class="font-extrabold text-xl">Produk</h2><button id="addp" class="btn">+ Tambah</button></div>
+  return `<div class="flex items-center justify-between mb-1"><h2 class="font-extrabold text-xl">Produk</h2><div class="flex gap-2"><button id="bulkp" class="btn btn-ghost">+ Banyak</button><button id="addp" class="btn">+ Tambah</button></div></div>
   <p class="text-xs text-slate-500 mb-3">Atur urutan tampil di toko: seret kartu (desktop) atau pakai panah ▲▼. Matikan saklar untuk menyembunyikan produk dari toko.</p>
   <div id="plist">${ps.length?ps.map(x=>`<div class="card p-3 mb-3 flex items-center gap-2 ${x.is_active===false?'bg-slate-50':''}" draggable="true" data-pid="${x.id}">
     <span class="cursor-grab text-slate-300 text-xl select-none px-1" title="Seret untuk mengurutkan">⠿</span>
@@ -298,7 +289,7 @@ function productsBody(C){
     <div class="flex-1 min-w-0"><p class="font-semibold truncate ${x.is_active===false?'opacity-50':''}">${esc(x.title)}</p><p class="text-xs text-slate-500">${esc(x.category)}${x.stock!=null?' · Stok '+x.stock:''}${x.is_active===false?' · Disembunyikan':''}</p><p class="text-sm mt-0.5">${priceTag(x)}</p></div>
     <div class="flex flex-col items-end gap-1.5">
       <div class="flex items-center gap-1"><button class="w-7 h-7 rounded-lg bg-slate-100 text-xs" data-up aria-label="Naikkan">▲</button><button class="w-7 h-7 rounded-lg bg-slate-100 text-xs" data-down aria-label="Turunkan">▼</button><input type="checkbox" class="sw ml-1" data-vis="${x.id}" ${x.is_active===false?'':'checked'} title="Tampilkan di toko"></div>
-      <div class="flex gap-1.5"><button class="btn btn-ghost !py-1 !px-3 text-xs" data-edit="${x.id}">Ubah</button><button class="btn btn-danger !py-1 !px-3 text-xs" data-del="${x.id}">Hapus</button></div></div></div>`).join(''):'<div class="card p-8 text-center text-slate-500 text-sm">Belum ada produk. Tambahkan produk pertama Anda.</div>'}</div>`;
+      <div class="flex gap-1.5"><button class="btn btn-ghost !py-1 !px-3 text-xs" data-sales="${x.id}">Sales page</button><button class="btn btn-ghost !py-1 !px-3 text-xs" data-edit="${x.id}">Ubah</button><button class="btn btn-danger !py-1 !px-3 text-xs" data-del="${x.id}">Hapus</button></div></div></div>`).join(''):'<div class="card p-8 text-center text-slate-500 text-sm">Belum ada produk. Tambahkan produk pertama Anda.</div>'}</div>`;
 }
 function bindProducts(C){
   const box=$('#plist');if(!box)return;let drag=null;
@@ -360,14 +351,14 @@ function productForm(x={}){
         stock:E.limitstock.checked?Math.max(0,parseInt(E.stock.value)||0):null,max_qty:E.limitqty.checked?Math.max(1,parseInt(E.maxqty.value)||1):null,
         button_label:E.btnlabel.value,addons:adds.filter(a=>String(a.name).trim()).map(a=>({name:String(a.name).trim(),price:Number(a.price)||0})),
         affiliate_enabled:E.aff.checked,affiliate_rate:E.arate.value===''?null:Number(E.arate.value)};
-      const {error}=await(x.id?sb.from('products').update(row).eq('id',x.id):sb.from('products').insert({...row,user_id:OID,sort_order:Math.max(0,...CUR_PRODS.map(p=>p.sort_order||0))+1}));
+      const {error}=await(x.id?sb.from('products').update(row).eq('id',x.id):sb.from('products').insert({...row,user_id:OID,slug:uniqueSlug(row.title),sort_order:Math.max(0,...CUR_PRODS.map(p=>p.sort_order||0))+1}));
       if(error)throw error;closeModal();toast(x.id?'Produk diperbarui':'Produk ditambahkan');viewDash()})};
 }
 
 /* ===== v3: grafik, aksi pesanan, afiliasi, invoice ===== */
 let EV=[],evRange=14;
 async function track(sid,type,pid=null){try{
-  if(type==='view'){const k='v_'+sid;if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1')}
+  if(type==='view'){const k='v_'+sid+(pid||'');if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1')}
   const {data}=await sb.auth.getSession();if(data.session?.user?.id===sid)return;
   await sb.from('store_events').insert({seller_id:sid,product_id:pid,type});
 }catch(e){}}
@@ -428,7 +419,7 @@ function bindExtra(C){
   $$('[data-idel]').forEach(b=>b.onclick=()=>{if(!confirm('Hapus invoice ini?'))return;
     withLoading(b,async()=>{const {error}=await sb.from('invoices').delete().eq('id',b.dataset.idel);if(error)throw error;toast('Invoice dihapus');viewDash()})});
   if($('#invf'))bindInvoice();
-  bindProducts(C);bindStaff(C);
+  bindProducts(C);bindStaff(C);bindSales(C);
   $$('[data-logout]').forEach(b=>b.onclick=async()=>{await sb.auth.signOut();session=null;go('')});
 }
 
@@ -692,13 +683,163 @@ function bindOG(C){
     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([h],{type:'text/html'}));a.download='index.html';a.click();toast('index.html diunduh. Unggah ke GitHub.')});
 }
 
+/* ===== v7: tambah banyak produk + sales page ===== */
+const lns=t=>String(t||'').split('\n').map(s=>s.trim()).filter(Boolean);
+const ytId=u=>{const m=String(u||'').match(/(?:youtu\.be\/|v=|embed\/)([\w-]{11})/);return m?m[1]:''};
+const slugify=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,50)||'produk';
+function uniqueSlug(t,extra=[]){const used=new Set([...CUR_PRODS.map(p=>p.slug),...extra]);const b=slugify(t);let s=b,i=2;while(used.has(s))s=b+'-'+(i++);return s}
+const siteBase=()=>baseUrl().replace(/index\.html$/,'');
+const wide=()=>{const c=modal.firstElementChild;c.classList.remove('sm:max-w-md');c.classList.add('sm:max-w-2xl')};
+
+const SEED=[
+ {t:'Template Canva',c:'Produk Digital',d:'Kumpulan template Canva siap edit untuk konten, promosi, dan kebutuhan bisnis Anda. Tinggal ganti teks dan gambar.',u:''},
+ {t:'Jasa Instal Elementor',c:'Jasa/Layanan',d:'Layanan instalasi dan penataan Elementor di website WordPress Anda, siap dipakai untuk membangun halaman yang menarik.',u:''},
+ {t:'Undangan Digital',c:'Produk Digital',d:'Undangan digital berdesain elegan yang mudah dibagikan lewat WhatsApp dan media sosial.',u:''},
+ {t:'Stampel',c:'Produk Fisik',d:'Stampel custom untuk kebutuhan bisnis dan administrasi, dengan desain sesuai permintaan Anda.',u:''},
+ {t:'1.000 Template Printable Edisi Islami PDF',c:'Produk Digital',d:'Kumpulan 1.000 template printable edisi Islami dalam format PDF. Siap diunduh dan dicetak kapan saja.',u:'https://lynk.id/digital.nakama/55e6xyx9ze65'},
+ {t:'1.000 Template Printable Edisi Umum PDF',c:'Produk Digital',d:'Kumpulan 1.000 template printable edisi umum dalam format PDF untuk berbagai kebutuhan. Siap diunduh dan dicetak kapan saja.',u:'https://lynk.id/digital.nakama/drnwjm18dqmd'}];
+
+function bulkForm(){
+  const rows=SEED.map(r=>({...r,p:''})),cats=['Produk Digital','Jasa/Layanan','Produk Fisik'];
+  const draw=()=>rows.map((r,i)=>`<div class="rounded-2xl border border-slate-200 p-3 space-y-2" data-row="${i}">
+    <div class="flex gap-2"><input class="inp flex-1 min-w-0" placeholder="Nama produk" data-f="t" value="${esc(r.t)}"><button type="button" class="text-red-500 text-2xl px-1" data-rm="${i}" aria-label="Hapus baris">&times;</button></div>
+    <div class="grid grid-cols-2 gap-2"><select class="inp" data-f="c">${cats.map(c=>`<option ${r.c===c?'selected':''}>${c}</option>`).join('')}</select><input class="inp" type="number" min="0" step="any" placeholder="Harga (Rp) *" data-f="p" value="${esc(r.p)}"></div>
+    <textarea class="inp" rows="2" placeholder="Deskripsi singkat" data-f="d">${esc(r.d)}</textarea>
+    <input class="inp" placeholder="Tautan unduhan / catatan akses (opsional)" data-f="u" value="${esc(r.u)}"></div>`).join('');
+  openModal(`<div class="flex justify-between items-center mb-2"><h3 class="font-extrabold text-lg">Tambah banyak produk</h3><button id="cl" class="text-slate-400 text-2xl" aria-label="Tutup">&times;</button></div>
+  <p class="text-xs text-slate-500 mb-3">Enam produk Anda sudah terisi. Isi <b>harga</b> tiap produk, ubah jika perlu, lalu klik tombol di bawah. Gambar, flash sale, dan add-on bisa diatur lewat tombol Ubah setelahnya. Setiap produk otomatis punya sales page sendiri.</p>
+  <div id="brows" class="space-y-3">${draw()}</div>
+  <button type="button" id="badd" class="btn btn-ghost w-full mt-3">+ Tambah baris</button><button type="button" id="bgo" class="btn w-full mt-2">Tambah semua produk</button>`);
+  wide();$('#cl').onclick=closeModal;
+  const box=$('#brows');
+  box.addEventListener('input',e=>{const row=e.target.closest('[data-row]');if(row&&e.target.dataset.f)rows[+row.dataset.row][e.target.dataset.f]=e.target.value});
+  box.addEventListener('click',e=>{const i=e.target.dataset.rm;if(i!==undefined){rows.splice(+i,1);box.innerHTML=draw()}});
+  $('#badd').onclick=()=>{rows.push({t:'',c:'Produk Digital',d:'',u:'',p:''});box.innerHTML=draw()};
+  $('#bgo').onclick=e=>withLoading(e.currentTarget,async()=>{
+    const ok=rows.filter(r=>r.t.trim());if(!ok.length)throw new Error('Belum ada produk untuk ditambahkan.');
+    const miss=ok.filter(r=>r.p===''||isNaN(Number(r.p))||Number(r.p)<0);
+    if(miss.length)throw new Error('Isi harga untuk: '+miss.map(r=>r.t).join(', '));
+    const base=Math.max(0,...CUR_PRODS.map(p=>p.sort_order||0)),used=[];
+    const data=ok.map((r,i)=>{const slug=uniqueSlug(r.t,used);used.push(slug);
+      return {user_id:OID,title:r.t.trim(),category:r.c,price:Number(r.p),currency:'IDR',description:r.d.trim(),digital_file_url:r.u.trim(),slug,sort_order:base+i+1,is_active:true,button_label:'Beli Sekarang',addons:[],sales:{}}});
+    const {error}=await sb.from('products').insert(data);
+    if(error)throw new Error(/slug|column/i.test(error.message)?'Jalankan schema_v7.sql dulu. ('+error.message+')':error.message);
+    closeModal();toast(data.length+' produk ditambahkan');viewDash()});
+}
+
+function shareStub(P,x){
+  const sa=x.sales||{},url=`${siteBase()}#/p/${x.slug}`,d=(sa.sub||x.description||'').slice(0,200),img=safeUrl(x.image_url)||safeUrl(P.thumbnail_url)||safeUrl(P.banner_url)||'',t=x.title+' - '+P.store_name;
+  const m=(a,b)=>`<meta ${a} content="${esc(b)}">`;
+  return `<!doctype html><html lang="id"><head><meta charset="utf-8"><title>${esc(t)}</title>${m('name="description"',d)}${m('property="og:type"','product')}${m('property="og:title"',t)}${m('property="og:description"',d)}${m('property="og:image"',img)}${m('property="og:url"',url)}${m('name="twitter:card"','summary_large_image')}${m('name="twitter:image"',img)}<meta http-equiv="refresh" content="0;url=${esc(url)}"></head><body><script>location.replace(${JSON.stringify(url)})<\/script><a href="${esc(url)}">Buka halaman produk</a></body></html>`;
+}
+function salesForm(x,P){
+  const sa=x.sales||{},slug=x.slug||uniqueSlug(x.title),link=s=>`${baseUrl()}#/p/${s}`;
+  openModal(`<div class="flex justify-between items-center mb-3"><h3 class="font-extrabold text-lg">Sales page: ${esc(x.title)}</h3><button id="cl" class="text-slate-400 text-2xl" aria-label="Tutup">&times;</button></div>
+  <form id="slf" class="space-y-3">
+    <div>${FL('Alamat halaman (slug)')}<input class="inp" name="slug" value="${esc(slug)}" required><p id="slp" class="text-xs text-indigo-600 mt-1 break-all">${esc(link(slug))}</p></div>
+    <div>${FL('Judul utama (headline)')}<input class="inp" name="headline" value="${esc(sa.headline)}" placeholder="${esc(x.title)}"></div>
+    <div>${FL('Subjudul')}<textarea class="inp" name="sub" rows="2" placeholder="Kalimat singkat yang menjual">${esc(sa.sub)}</textarea></div>
+    <div class="grid grid-cols-2 gap-2"><div>${FL('Teks tombol')}<input class="inp" name="cta" value="${esc(sa.cta)}" placeholder="${esc(x.button_label||'Beli Sekarang')}"></div><div>${FL('Video YouTube (opsional)')}<input class="inp" name="video" value="${esc(sa.video)}" placeholder="https://youtu.be/..."></div></div>
+    <div>${FL('Galeri gambar (satu URL per baris)')}<textarea class="inp" name="gallery" rows="3" placeholder="https://...">${esc((sa.gallery||[]).join('\n'))}</textarea><input type="file" name="gfiles" accept="image/*" multiple class="text-xs mt-1"><p class="text-[11px] text-slate-400">Gambar utama produk tampil otomatis. Unggah gambar tambahan di sini.</p></div>
+    <div>${FL('Keunggulan (satu per baris)')}<textarea class="inp" name="benefits" rows="3">${esc((sa.benefits||[]).join('\n'))}</textarea></div>
+    <div>${FL('Yang Anda dapatkan / isi paket (satu per baris)')}<textarea class="inp" name="includes" rows="3">${esc((sa.includes||[]).join('\n'))}</textarea></div>
+    <div>${FL('Testimoni (satu per baris: Nama|Isi testimoni)')}<textarea class="inp" name="testi" rows="3">${esc((sa.testimonials||[]).map(t=>t.n+'|'+t.t).join('\n'))}</textarea></div>
+    <div>${FL('FAQ (satu per baris: Pertanyaan|Jawaban)')}<textarea class="inp" name="faqs" rows="3">${esc((sa.faqs||[]).map(f=>f.q+'|'+f.a).join('\n'))}</textarea></div>
+    <p class="text-[11px] text-slate-400">Kolom yang dikosongkan akan diisi otomatis dari data produk, jadi halaman tetap lengkap.</p>
+    <button class="btn w-full" type="submit">Simpan sales page</button></form>
+  <div class="mt-3 grid grid-cols-2 gap-2"><a class="btn btn-ghost" target="_blank" rel="noopener" href="${esc(link(slug))}">Lihat halaman</a><button type="button" class="btn btn-ghost" id="slcopy">Salin link</button></div>
+  <button type="button" class="btn btn-ghost w-full mt-2" id="sldl">Unduh file share (thumbnail)</button>
+  <p class="text-[11px] text-slate-400 mt-1">Agar link menampilkan thumbnail produk di WhatsApp, unggah file hasil unduhan ke folder <b>p</b> di GitHub, lalu bagikan: ${esc(siteBase())}p/${esc(slug)}.html</p>`);
+  wide();$('#cl').onclick=closeModal;
+  const f=$('#slf'),E=f.elements;
+  E.slug.oninput=()=>{$('#slp').textContent=link(slugify(E.slug.value))};
+  E.gfiles.onchange=async()=>{try{toast('Mengunggah gambar...');const urls=[];for(const fl of E.gfiles.files)urls.push(await upload(fl,'gallery'));E.gallery.value=(E.gallery.value.trim()?E.gallery.value.trim()+'\n':'')+urls.join('\n');E.gfiles.value='';toast('Gambar ditambahkan')}catch(er){toast(er.message,false)}};
+  const build=()=>({headline:E.headline.value.trim(),sub:E.sub.value.trim(),cta:E.cta.value.trim(),video:E.video.value.trim(),gallery:lns(E.gallery.value).filter(safeUrl),benefits:lns(E.benefits.value),includes:lns(E.includes.value),
+    testimonials:lns(E.testi.value).map(l=>l.split('|')).filter(a=>a[1]).map(a=>({n:a[0].trim(),t:a.slice(1).join('|').trim()})),faqs:lns(E.faqs.value).map(l=>l.split('|')).filter(a=>a[1]).map(a=>({q:a[0].trim(),a:a.slice(1).join('|').trim()}))});
+  $('#slcopy').onclick=()=>copy(link(slugify(E.slug.value)));
+  $('#sldl').onclick=()=>{const s=slugify(E.slug.value),h=shareStub(P,{...x,slug:s,sales:build()}),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([h],{type:'text/html'}));a.download=s+'.html';a.click();toast('File diunduh. Simpan ke folder p di GitHub.')};
+  f.onsubmit=e=>{e.preventDefault();withLoading($('button[type=submit]',f),async()=>{
+    const s=slugify(E.slug.value);
+    const {error}=await sb.from('products').update({slug:s,sales:build()}).eq('id',x.id);
+    if(error)throw new Error(error.code==='23505'?'Alamat halaman sudah dipakai produk lain.':error.message);
+    toast('Sales page disimpan');closeModal();viewDash()})};
+}
+function bindSales(C){
+  const b=$('#bulkp');if(b)b.onclick=bulkForm;
+  $$('[data-sales]').forEach(x=>x.onclick=()=>salesForm(C.prods.find(p=>p.id===x.dataset.sales),C.P));
+}
+
+/* ---- Halaman jual per produk ---- */
+function applyStoreTheme(p){
+  const T=(p.theme&&p.theme.store)||{},st=document.documentElement.style;
+  applyTheme(T.c1,T.c2);
+  st.setProperty('--br',{pill:'999px',square:'.3rem'}[T.btn]||'.75rem');
+  st.setProperty('--cr',T.card==='sharp'?'.4rem':T.card==='outline'?'1rem':'1.25rem');
+  document.body.style.background='color-mix(in srgb,var(--c1) 6%,#fff)';
+  return T;
+}
+const DEF_BEN={'Produk Digital':['Akses digital setelah pembayaran dikonfirmasi','Format siap pakai dan mudah digunakan','Bisa dipesan kapan saja, 24 jam'],'Jasa/Layanan':['Dikerjakan langsung oleh penyedia jasa','Komunikasi mudah lewat WhatsApp','Hasil disesuaikan dengan kebutuhan Anda'],'Produk Fisik':['Dikemas rapi dan aman','Konfirmasi pesanan cepat lewat WhatsApp','Pengiriman sesuai kesepakatan dengan penjual']};
+async function viewSales(username,slug,ref){
+  loadingView();
+  const un=username||await mainStore();
+  const {data:p}=await sb.from('profiles').select('*').eq('username',String(un||'').toLowerCase()).maybeSingle();
+  const nf=(t,s)=>{resetTheme();app.innerHTML=`<div class="min-h-screen grid place-items-center p-6 text-center"><div><p class="text-5xl">🔍</p><p class="font-extrabold text-lg mt-3">${t}</p><p class="text-sm text-slate-500 mt-1">${s}</p><a href="#/" class="btn mt-4">Ke beranda</a></div></div>`};
+  if(!p)return nf('Toko tidak ditemukan','Periksa kembali link yang Anda buka.');
+  let {data:prod}=await sb.from('products').select('*').eq('user_id',p.id).eq('is_active',true).eq('slug',slug).maybeSingle();
+  if(!prod&&/^[0-9a-f-]{36}$/i.test(slug)){({data:prod}=await sb.from('products').select('*').eq('user_id',p.id).eq('is_active',true).eq('id',slug).maybeSingle())}
+  if(!prod)return nf('Produk tidak ditemukan','Produk mungkin sudah tidak tersedia.');
+  const T=applyStoreTheme(p),sa=prod.sales||{};
+  setMeta(prod.title+' - '+p.store_name,sa.sub||prod.description,prod.image_url||p.thumbnail_url||p.banner_url,p.favicon_url||p.avatar_url);
+  const [sk,rl]=await Promise.all([sb.rpc('store_stock',{p_seller:p.id}),sb.from('products').select('id,title,slug,price,currency,image_url,category,sale_price,flash_sale,sale_ends_at,pay_what_you_want').eq('user_id',p.id).eq('is_active',true).neq('id',prod.id).order('sort_order',{ascending:true,nullsFirst:false}).limit(3)]);
+  const rem=((sk.data||[]).find(r=>r.product_id===prod.id)||{}).remaining,sold=rem===0,cur=prod.currency||'IDR',fl=isFlash(prod);
+  const pm=p.payment_methods||{},pays=[...(pm.qris?['QRIS']:[]),...(pm.banks||[]).map(b=>b.bank),...(pm.ewallets||[]).map(w=>w.name),...(pm.other?['Lainnya']:[])];
+  const imgs=[prod.image_url,...(sa.gallery||[])].filter(safeUrl),vid=ytId(sa.video);
+  const ben=(sa.benefits&&sa.benefits.length?sa.benefits:DEF_BEN[prod.category]||[]),inc=sa.includes||[];
+  const faqs=(sa.faqs&&sa.faqs.length?sa.faqs:[{q:'Bagaimana cara memesan?',a:'Klik tombol beli, isi data singkat, pilih metode pembayaran, lalu konfirmasi lewat WhatsApp.'},{q:'Metode pembayaran apa saja?',a:pays.length?pays.join(', ')+'.':'Dikonfirmasi lewat WhatsApp dengan penjual.'},{q:'Berapa lama pesanan diproses?',a:'Setelah pembayaran dikonfirmasi, penjual segera memproses pesanan Anda.'}]);
+  const cta=sa.cta||prod.button_label||'Beli Sekarang',href=x=>`#/store/${esc(p.username)}/${esc(x.slug||x.id)}`;
+  const priceBlock=`<div>${prod.pay_what_you_want?'<p class="text-xs text-slate-400">Bayar sesukamu, minimal</p>':fl?`<p class="text-sm text-slate-400 line-through">${money(prod.price,cur)}</p>`:''}<p class="text-3xl font-extrabold text-indigo-600">${money(unitPrice(prod),cur)}</p></div>`;
+  const badges=`${fl?`<span class="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">⚡ Flash Sale${prod.sale_ends_at?' s.d. '+new Date(prod.sale_ends_at).toLocaleString('id-ID',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</span>`:''}${rem!=null&&rem>0&&rem<=5?`<span class="text-xs font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-600">Sisa ${rem}</span>`:''}`;
+  const buyBtn=c=>`<button class="btn cta ${c}" ${sold?'disabled':''}>${sold?'Stok habis':esc(cta)}</button>`;
+  const sec=(t,b)=>`<section class="max-w-5xl mx-auto px-4 py-8"><h2 class="text-xl sm:text-2xl font-extrabold mb-4">${t}</h2>${b}</section>`;
+  const wa=p.whatsapp_number?`https://wa.me/${waNum(p.whatsapp_number)}?text=${encodeURIComponent('Halo, saya tertarik dengan '+prod.title)}`:'';
+  app.innerHTML=`<div style="position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden">${decorHTML(T.decor||'blobs')}</div>
+  <div class="relative z-10 pb-24 md:pb-0">
+  <header class="sticky top-0 z-30 backdrop-blur-md bg-white/75 border-b border-white/60"><div class="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+    <a href="#/store/${esc(p.username)}" class="flex items-center gap-2 min-w-0 font-extrabold"><span class="text-indigo-600">←</span><span class="truncate">${esc(p.store_name)}</span></a>
+    <a href="#/${session?'dashboard':'login'}" class="btn btn-ghost !py-2 !px-4 text-sm">${session?'Dashboard':'Masuk'}</a></div></header>
+  <section class="max-w-5xl mx-auto px-4 pt-6 sm:pt-10 grid lg:grid-cols-[1.15fr_.85fr] gap-8 items-start">
+    <div><span class="inline-block text-xs font-bold px-3 py-1 rounded-full text-white" style="background:var(--g)">${esc(prod.category)}</span>
+      <h1 class="mt-3 text-3xl sm:text-4xl font-extrabold leading-tight" style="background:var(--g);-webkit-background-clip:text;background-clip:text;color:transparent">${esc(sa.headline||prod.title)}</h1>
+      ${(sa.sub||prod.description)?`<p class="mt-3 text-slate-600 sm:text-lg" style="white-space:pre-line">${esc(sa.sub||String(prod.description).slice(0,220))}</p>`:''}
+      <div class="mt-5 rounded-3xl overflow-hidden shadow-xl bg-white">${vid?`<div class="aspect-video"><iframe class="w-full h-full" src="https://www.youtube.com/embed/${vid}" title="Video produk" allowfullscreen loading="lazy"></iframe></div>`:imgs.length?`<img id="mainimg" src="${esc(imgs[0])}" class="w-full max-h-[460px] object-cover" alt="${esc(prod.title)}">`:`<div class="h-56" style="background:var(--g)"></div>`}</div>
+      ${imgs.length>1?`<div class="flex gap-2 mt-3 overflow-x-auto">${imgs.map((u,i)=>`<img src="${esc(u)}" data-thumb="${esc(u)}" class="w-16 h-16 rounded-xl object-cover cursor-pointer border-2 ${i?'border-transparent':'border-indigo-500'}" alt="">`).join('')}</div>`:''}</div>
+    <aside class="lg:sticky lg:top-20"><div class="card p-5 space-y-3"><div class="flex flex-wrap gap-1.5">${badges}</div>${priceBlock}
+      ${buyBtn('w-full !py-3.5 text-base')}
+      ${wa?`<a href="${wa}" target="_blank" rel="noopener" class="btn btn-ghost w-full">Tanya penjual via WhatsApp</a>`:''}
+      <ul class="text-sm text-slate-500 space-y-1.5 pt-1"><li>✓ Pembayaran: ${pays.length?esc(pays.slice(0,4).join(', ')):'konfirmasi via WhatsApp'}</li><li>✓ Konfirmasi pesanan lewat WhatsApp</li>${prod.max_qty?`<li>✓ Maksimal ${prod.max_qty} per pesanan</li>`:''}</ul></div></aside>
+  </section>
+  ${prod.description?sec('Tentang produk ini',`<div class="card p-5 text-slate-600" style="white-space:pre-line">${esc(prod.description)}</div>`):''}
+  ${ben.length?sec('Kenapa memilih ini?',`<div class="grid sm:grid-cols-3 gap-4">${ben.map(b=>`<div class="card p-4 flex gap-3"><span class="w-8 h-8 shrink-0 rounded-full grid place-items-center text-white text-sm" style="background:var(--g)">✓</span><p class="text-sm font-semibold">${esc(b)}</p></div>`).join('')}</div>`):''}
+  ${inc.length?sec('Yang Anda dapatkan',`<div class="card p-5"><ul class="space-y-2">${inc.map(i=>`<li class="flex gap-2 text-sm"><span class="text-indigo-600 font-bold">✓</span><span>${esc(i)}</span></li>`).join('')}</ul></div>`):''}
+  ${(sa.testimonials||[]).length?sec('Kata mereka',`<div class="grid sm:grid-cols-2 gap-4">${sa.testimonials.map(t=>`<div class="card p-5"><p class="text-sm text-slate-600" style="white-space:pre-line">“${esc(t.t)}”</p><p class="mt-3 text-sm font-bold">${esc(t.n)}</p></div>`).join('')}</div>`):''}
+  ${sec('Pertanyaan yang sering diajukan',`<div class="space-y-2">${faqs.map(f=>`<details class="card p-4"><summary class="font-semibold cursor-pointer">${esc(f.q)}</summary><p class="text-sm text-slate-500 mt-2" style="white-space:pre-line">${esc(f.a)}</p></details>`).join('')}</div>`)}
+  <section class="max-w-5xl mx-auto px-4 py-6"><div class="rounded-3xl p-8 text-center text-white relative overflow-hidden" style="background:var(--g)"><div class="absolute -right-10 -top-10 w-44 h-44 rounded-full bg-white/10"></div><p class="text-2xl font-extrabold relative">Siap memesan ${esc(prod.title)}?</p><p class="opacity-90 mt-1 relative">${money(unitPrice(prod),cur)} · pesan sekarang, konfirmasi lewat WhatsApp.</p><button class="btn cta !bg-white !text-indigo-700 mt-4 !px-8 !py-3 relative" ${sold?'disabled':''}>${sold?'Stok habis':esc(cta)}</button></div></section>
+  ${(rl.data||[]).length?sec('Produk lainnya',`<div class="grid sm:grid-cols-3 gap-4">${rl.data.map(x=>`<a href="${href(x)}" class="card overflow-hidden block transition hover:-translate-y-1">${safeUrl(x.image_url)?`<img src="${esc(x.image_url)}" class="w-full h-32 object-cover" alt="">`:`<div class="h-20" style="background:var(--g);opacity:.9"></div>`}<div class="p-3"><p class="font-bold text-sm">${esc(x.title)}</p><p class="text-indigo-600 font-extrabold mt-1">${money(unitPrice(x),x.currency||'IDR')}</p></div></a>`).join('')}</div>`):''}
+  <footer class="mt-8 text-white" style="background:var(--g)"><div class="max-w-5xl mx-auto px-4 py-8 flex flex-wrap items-center justify-between gap-3"><div><p class="font-extrabold">${esc(p.store_name)}</p><p class="text-xs opacity-80">Dibuat dengan TokoKilat</p></div><a href="#/store/${esc(p.username)}" class="btn !bg-white !text-indigo-700">Lihat semua produk</a></div></footer></div>
+  <div class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-100 p-3 flex items-center gap-3 shadow-2xl"><div class="min-w-0"><p class="text-[11px] text-slate-400 truncate">${esc(prod.title)}</p><p class="font-extrabold text-indigo-600">${money(unitPrice(prod),cur)}</p></div>${buyBtn('flex-1')}</div>`;
+  $$('.cta').forEach(b=>b.onclick=()=>{track(p.id,'click',prod.id);checkout(prod,p,ref,rem)});
+  $$('[data-thumb]').forEach(t=>t.onclick=()=>{const m=$('#mainimg');if(m)m.src=t.dataset.thumb;$$('[data-thumb]').forEach(x=>{x.classList.toggle('border-indigo-500',x===t);x.classList.toggle('border-transparent',x!==t)})});
+  track(p.id,'view',prod.id);
+  window.scrollTo(0,0);
+}
+
 /* ============ TOKO PUBLIK ============ */
 /* ===== v4: tema, setelan, toko publik ===== */
 const PAL=[['Indigo','#4f46e5','#7c3aed'],['Teal','#0f766e','#06b6d4'],['Hijau','#059669','#84cc16'],['Oranye','#ea580c','#f59e0b'],['Pink','#db2777','#f472b6'],['Biru','#2563eb','#38bdf8'],['Slate','#0f172a','#475569']];
 function applyTheme(a,b){const s=document.documentElement.style;s.setProperty('--c1',a||'#4f46e5');s.setProperty('--c2',b||'#7c3aed')}
 function setMeta(t,d,img,fav){document.title=t;const f=$('#fav');if(f)f.href=safeUrl(fav)||'data:,';
   [['og:title',t],['og:description',d||''],['og:image',safeUrl(img)]].forEach(([k,v])=>{const m=$(`meta[property="${k}"]`);if(m)m.content=v||''})}
-function resetTheme(){applyTheme();const s=document.documentElement.style;s.removeProperty('--br');s.removeProperty('--cr');document.body.style.background='';setMeta('AQSHA - Instant Store','','','')}
+function resetTheme(){applyTheme();const s=document.documentElement.style;s.removeProperty('--br');s.removeProperty('--cr');document.body.style.background='';setMeta('TokoKilat - Instant Store','','','')}
 
 function decorHTML(k){
   const c='color-mix(in srgb,var(--c1) 22%,transparent)',bg=s=>`<div style="position:absolute;inset:0;${s}"></div>`;
@@ -780,7 +921,7 @@ async function viewStore(username,ref,pid){
   st.setProperty('--br',{pill:'999px',square:'.3rem'}[T.btn]||'.75rem');
   st.setProperty('--cr',T.card==='sharp'?'.4rem':T.card==='outline'?'1rem':'1.25rem');
   document.body.style.background='color-mix(in srgb,var(--c1) 6%,#fff)';
-  setMeta(p.store_name+' - AQSHA',p.bio,p.thumbnail_url||p.banner_url||p.avatar_url,p.favicon_url||p.avatar_url);
+  setMeta(p.store_name+' - TokoKilat',p.bio,p.thumbnail_url||p.banner_url||p.avatar_url,p.favicon_url||p.avatar_url);
   const [pr,sk]=await Promise.all([
     sb.from('products').select('*').eq('user_id',p.id).eq('is_active',true).order('sort_order',{ascending:true,nullsFirst:false}).order('created_at',{ascending:false}),
     sb.rpc('store_stock',{p_seller:p.id})]);
@@ -797,7 +938,7 @@ async function viewStore(username,ref,pid){
   const card=x=>{const im=safeUrl(x.image_url),rem=stock[x.id],sold=rem===0;
     const badges=`${isFlash(x)?`<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">⚡ Flash Sale${x.sale_ends_at?' s.d. '+new Date(x.sale_ends_at).toLocaleDateString('id-ID',{day:'numeric',month:'short'}):''}</span>`:''}${rem!=null&&rem>0&&rem<=5?`<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600">Sisa ${rem}</span>`:''}`;
     const info=`<div class="p-4 flex flex-col flex-1 min-w-0"><div class="flex flex-wrap gap-1"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full text-white" style="background:var(--g)">${esc(x.category)}</span>${badges}</div>
-      <h3 class="font-bold mt-2">${esc(x.title)}</h3>${x.description?`<p class="text-sm text-slate-500 mt-1 line-clamp-3">${esc(x.description)}</p>`:''}
+      <a href="#/store/${esc(p.username)}/${esc(x.slug||x.id)}" class="block"><h3 class="font-bold mt-2 hover:underline">${esc(x.title)}</h3></a>${x.description?`<p class="text-sm text-slate-500 mt-1 line-clamp-3">${esc(x.description)}</p>`:''}
       <div class="flex items-center justify-between gap-2 mt-auto pt-3">${priceHTML(x)}<button class="btn" data-buy="${x.id}" ${sold?'disabled':''}>${sold?'Habis':esc(x.button_label||'Beli Sekarang')}</button></div></div>`;
     const pic=c=>im?`<img src="${esc(x.image_url)}" class="${c} object-cover bg-indigo-50" alt="${esc(x.title)}" onerror="this.remove()">`:(list?`<div class="w-28 sm:w-40 shrink-0 self-stretch" style="background:var(--g);opacity:.9"></div>`:`<div class="h-24 w-full" style="background:var(--g);opacity:.9"></div>`);
     return list?`<div class="card overflow-hidden flex transition hover:-translate-y-0.5" style="${cs}">${pic('w-28 sm:w-40 shrink-0 self-stretch')}${info}</div>`
@@ -832,7 +973,7 @@ async function viewStore(username,ref,pid){
     <div><p class="text-xl font-extrabold">${esc(p.store_name)}</p>${p.bio?`<p class="text-sm opacity-90 mt-1 max-w-sm">${esc(p.bio)}</p>`:''}</div>
     <div class="sm:text-right space-y-2">${p.whatsapp_number?`<a href="https://wa.me/${waNum(p.whatsapp_number)}" target="_blank" rel="noopener" class="btn !bg-white !text-indigo-700">Hubungi via WhatsApp</a>`:''}
       <p class="text-xs opacity-80"><button id="sh" class="underline">Bagikan toko</button> · <a href="#/${session?'dashboard':'login'}" class="underline">${session?'Dashboard':'Masuk penjual'}</a></p></div></div>
-    <p class="text-center text-xs opacity-70 pb-5">Dibuat dengan AQSHA</p></footer></div>`;
+    <p class="text-center text-xs opacity-70 pb-5">Dibuat dengan TokoKilat</p></footer></div>`;
   render('Semua');track(p.id,'view');if(pid){const tp=prods.find(x=>x.id===pid);if(tp)checkout(tp,p,ref,stock[tp.id])}
   $('#sh').onclick=()=>copy(baseUrl()+'#/store/'+p.username);
   $$('[data-scroll]').forEach(b=>b.onclick=()=>{const el=document.getElementById(b.dataset.scroll);if(el)el.scrollIntoView({behavior:'smooth'})});
