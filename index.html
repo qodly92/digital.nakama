@@ -240,7 +240,7 @@ async function viewDash(){
   app.innerHTML=`
   <aside class="hidden md:flex fixed inset-y-0 left-0 w-60 flex-col p-4 text-white overflow-hidden" style="background:linear-gradient(180deg,var(--c1),var(--c2))">
     <div class="absolute -right-12 top-24 w-44 h-44 rounded-full bg-white/10 pointer-events-none"></div><div class="absolute -left-10 bottom-32 w-36 h-36 rounded-full bg-white/10 pointer-events-none"></div><svg class="absolute bottom-0 left-0 w-full pointer-events-none" viewBox="0 0 240 90" fill="#fff" fill-opacity=".08"><path d="M0 40 C60 10 120 70 240 30 V90 H0Z"/></svg>
-    <div class="flex items-center gap-3 px-2 py-3"><div class="w-10 h-10 rounded-xl bg-white/20 grid place-items-center font-extrabold">T</div><p class="font-extrabold text-lg">TokoKilat</p></div>
+    <div class="flex items-center gap-3 px-2 py-3"><div class="w-10 h-10 rounded-xl bg-white/20 grid place-items-center font-extrabold">T</div><p class="font-extrabold text-lg">Tim Nakama</p></div>
     <nav class="nav mt-4 space-y-1">${navItems().map(([k,i,l])=>`<a data-tab="${k}" class="${dashTab===k?'on':''}"><span>${i}</span>${l}</a>`).join('')}</nav>
     <div class="mt-auto space-y-2 relative"><a href="#/store/${esc(P.username)}" class="btn w-full !bg-white !text-indigo-700">Lihat toko publik</a><button data-logout class="btn w-full !bg-white/15 hover:!bg-white/25">Keluar</button></div>
   </aside>
@@ -839,7 +839,7 @@ async function viewSales(username,slug,ref){
   ${sec('Pertanyaan yang sering diajukan',`<div class="space-y-2">${faqs.map(f=>`<details class="card p-4"><summary class="font-semibold cursor-pointer">${esc(f.q)}</summary><p class="text-sm text-slate-500 mt-2" style="white-space:pre-line">${esc(f.a)}</p></details>`).join('')}</div>`)}
   <section class="max-w-5xl mx-auto px-4 py-6"><div class="rounded-3xl p-8 text-center text-white relative overflow-hidden" style="background:var(--g)"><div class="absolute -right-10 -top-10 w-44 h-44 rounded-full bg-white/10"></div><p class="text-2xl font-extrabold relative">Siap memesan ${esc(prod.title)}?</p><p class="opacity-90 mt-1 relative">${money(unitPrice(prod),cur)} · pesan sekarang, konfirmasi lewat WhatsApp.</p><button class="btn cta !bg-white !text-indigo-700 mt-4 !px-8 !py-3 relative" ${sold?'disabled':''}>${sold?'Stok habis':esc(cta)}</button></div></section>
   ${(rl.data||[]).length?sec('Produk lainnya',`<div class="grid sm:grid-cols-3 gap-4">${rl.data.map(x=>`<a href="${href(x)}" class="card overflow-hidden block transition hover:-translate-y-1"><img src="${safeUrl(x.image_url)?esc(x.image_url):autoBanner(x,p)}" class="w-full h-32 object-cover" alt=""><div class="p-3"><p class="font-bold text-sm">${esc(x.title)}</p><p class="text-indigo-600 font-extrabold mt-1">${money(unitPrice(x),x.currency||'IDR')}</p></div></a>`).join('')}</div>`):''}
-  <footer class="mt-8 text-white" style="background:var(--g)"><div class="max-w-5xl mx-auto px-4 py-8 flex flex-wrap items-center justify-between gap-3"><div><p class="font-extrabold">${esc(p.store_name)}</p><p class="text-xs opacity-80">Dibuat dengan TokoKilat</p></div><a href="#/store/${esc(p.username)}" class="btn !bg-white !text-indigo-700">Lihat semua produk</a></div></footer></div>
+  <footer class="mt-8 text-white" style="background:var(--g)"><div class="max-w-5xl mx-auto px-4 py-8 flex flex-wrap items-center justify-between gap-3"><div><p class="font-extrabold">${esc(p.store_name)}</p><p class="text-xs opacity-80">Dibuat oleh Tim Nakama</p></div><a href="#/store/${esc(p.username)}" class="btn !bg-white !text-indigo-700">Lihat semua produk</a></div></footer></div>
   <div class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-100 p-3 flex items-center gap-3 shadow-2xl"><div class="min-w-0"><p class="text-[11px] text-slate-400 truncate">${esc(prod.title)}</p><p class="font-extrabold text-indigo-600">${money(unitPrice(prod),cur)}</p></div>${buyBtn('flex-1')}</div>`;
   $$('.cta').forEach(b=>b.onclick=()=>{track(p.id,'click',prod.id);checkout(prod,p,ref,rem)});
   $$('[data-thumb]').forEach(t=>t.onclick=()=>{const m=$('#mainimg');if(m)m.src=t.dataset.thumb;$$('[data-thumb]').forEach(x=>{x.classList.toggle('border-indigo-500',x===t);x.classList.toggle('border-transparent',x!==t)})});
@@ -924,7 +924,7 @@ const PAL=[['Indigo','#4f46e5','#7c3aed'],['Teal','#0f766e','#06b6d4'],['Hijau',
 function applyTheme(a,b){const s=document.documentElement.style;s.setProperty('--c1',a||'#4f46e5');s.setProperty('--c2',b||'#7c3aed')}
 function setMeta(t,d,img,fav){document.title=t;const f=$('#fav');if(f)f.href=safeUrl(fav)||'data:,';
   [['og:title',t],['og:description',d||''],['og:image',safeUrl(img)]].forEach(([k,v])=>{const m=$(`meta[property="${k}"]`);if(m)m.content=v||''})}
-function resetTheme(){applyTheme();const s=document.documentElement.style;s.removeProperty('--br');s.removeProperty('--cr');document.body.style.background='';setMeta('TokoKilat - Instant Store','','','')}
+function resetTheme(){applyTheme();const s=document.documentElement.style;s.removeProperty('--br');s.removeProperty('--cr');document.body.style.background='';setMeta('Tim Nakama - Instant Store','','','')}
 
 function decorHTML(k){
   const c='color-mix(in srgb,var(--c1) 22%,transparent)',bg=s=>`<div style="position:absolute;inset:0;${s}"></div>`;
@@ -1006,7 +1006,7 @@ async function viewStore(username,ref,pid){
   st.setProperty('--br',{pill:'999px',square:'.3rem'}[T.btn]||'.75rem');
   st.setProperty('--cr',T.card==='sharp'?'.4rem':T.card==='outline'?'1rem':'1.25rem');
   document.body.style.background='color-mix(in srgb,var(--c1) 6%,#fff)';
-  setMeta(p.store_name+' - TokoKilat',p.bio,p.thumbnail_url||p.banner_url||p.avatar_url,p.favicon_url||p.avatar_url);
+  setMeta(p.store_name+' - Tim Nakama',p.bio,p.thumbnail_url||p.banner_url||p.avatar_url,p.favicon_url||p.avatar_url);
   const [pr,sk]=await Promise.all([
     sb.from('products').select('*').eq('user_id',p.id).eq('is_active',true).order('sort_order',{ascending:true,nullsFirst:false}).order('created_at',{ascending:false}),
     sb.rpc('store_stock',{p_seller:p.id})]);
@@ -1058,7 +1058,7 @@ async function viewStore(username,ref,pid){
     <div><p class="text-xl font-extrabold">${esc(p.store_name)}</p>${p.bio?`<p class="text-sm opacity-90 mt-1 max-w-sm">${esc(p.bio)}</p>`:''}</div>
     <div class="sm:text-right space-y-2">${p.whatsapp_number?`<a href="https://wa.me/${waNum(p.whatsapp_number)}" target="_blank" rel="noopener" class="btn !bg-white !text-indigo-700">Hubungi via WhatsApp</a>`:''}
       <p class="text-xs opacity-80"><button id="sh" class="underline">Bagikan toko</button> · <a href="#/${session?'dashboard':'login'}" class="underline">${session?'Dashboard':'Masuk penjual'}</a></p></div></div>
-    <p class="text-center text-xs opacity-70 pb-5">Dibuat dengan TokoKilat</p></footer></div>`;
+    <p class="text-center text-xs opacity-70 pb-5">Dibuat dengan Tim Nakama</p></footer></div>`;
   render('Semua');track(p.id,'view');if(pid){const tp=prods.find(x=>x.id===pid);if(tp)checkout(tp,p,ref,stock[tp.id])}
   $('#sh').onclick=()=>copy(baseUrl()+'#/store/'+p.username);
   $$('[data-scroll]').forEach(b=>b.onclick=()=>{const el=document.getElementById(b.dataset.scroll);if(el)el.scrollIntoView({behavior:'smooth'})});
